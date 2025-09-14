@@ -11,6 +11,7 @@
 
 package programmingtheiot.gda.app;
 
+import programmingtheiot.gda.system.SystemPerformanceManager;
 import org.apache.commons.cli.*;
 
 import programmingtheiot.common.ConfigConst;
@@ -25,43 +26,42 @@ import java.util.logging.Logger;
  * Main GDA application.
  * 
  */
-public class GatewayDeviceApp
-{
+public class GatewayDeviceApp {
 	// static
-	
-	private static final Logger _Logger =
-		Logger.getLogger(GatewayDeviceApp.class.getName());
-	
+
+	private static final Logger _Logger = Logger.getLogger(GatewayDeviceApp.class.getName());
+
 	public static final long DEFAULT_TEST_RUNTIME = 60000L;
-	
+
 	// private var's
-	
+	private SystemPerformanceManager sysPerfMgr = null;
+
 	private String configFile = ConfigConst.DEFAULT_CONFIG_FILE_NAME;
 
 	// constructors
-	
+
 	/**
 	 * Default.
 	 * 
 	 * @param configFile
 	 */
-	public GatewayDeviceApp()
-	{
+	public GatewayDeviceApp() {
 		super();
-		
+
 		_Logger.info("Initializing GDA...");
+
+		this.sysPerfMgr = new SystemPerformanceManager();
+
 	}
-	
-	
+
 	// static
-	
+
 	/**
 	 * Main application entry point.
 	 * 
 	 * @param args
 	 */
-	public static void main(String[] args)
-	{
+	public static void main(String[] args) {
 		Map<String, String> argMap = parseArgs(args);
 
 		if (argMap.containsKey(ConfigConst.CONFIG_FILE_KEY)) {
@@ -69,12 +69,12 @@ public class GatewayDeviceApp
 		}
 
 		GatewayDeviceApp gwApp = new GatewayDeviceApp();
-		
+
 		gwApp.startApp();
-		
-		boolean runForever =
-			ConfigUtil.getInstance().getBoolean(ConfigConst.GATEWAY_DEVICE, ConfigConst.ENABLE_RUN_FOREVER_KEY);
-		
+
+		boolean runForever = ConfigUtil.getInstance().getBoolean(ConfigConst.GATEWAY_DEVICE,
+				ConfigConst.ENABLE_RUN_FOREVER_KEY);
+
 		if (runForever) {
 			try {
 				while (true) {
@@ -83,7 +83,7 @@ public class GatewayDeviceApp
 			} catch (InterruptedException e) {
 				// ignore
 			}
-			
+
 			gwApp.stopApp(0);
 		} else {
 			try {
@@ -91,16 +91,18 @@ public class GatewayDeviceApp
 			} catch (InterruptedException e) {
 				// ignore
 			}
-			
+
 			gwApp.stopApp(0);
 		}
 	}
-	
+
 	/**
 	 * Parse any arguments passed in on app startup.
 	 * <p>
-	 * This method should be written to check if any valid command line args are provided,
-	 * including the name of the config file. Once parsed, call {@link #initConfig(String)}
+	 * This method should be written to check if any valid command line args are
+	 * provided,
+	 * including the name of the config file. Once parsed, call
+	 * {@link #initConfig(String)}
 	 * with the name of the config file, or null if the default should be used.
 	 * <p>
 	 * If any command line args conflict with the config file, the config file
@@ -108,12 +110,11 @@ public class GatewayDeviceApp
 	 * 
 	 * @param args The non-null and non-empty args array.
 	 */
-	private static Map<String, String> parseArgs(String[] args)
-	{
+	private static Map<String, String> parseArgs(String[] args) {
 		// store command line values in a map
 		Map<String, String> argMap = new HashMap<String, String>();
-		
-		if (args != null && args.length > 0)  {
+
+		if (args != null && args.length > 0) {
 			// create the parser and options - only need one for now ("c" for config file)
 			CommandLineParser parser = new DefaultParser();
 			Options options = new Options();
@@ -135,51 +136,53 @@ public class GatewayDeviceApp
 
 		return argMap;
 	}
-	
-	
+
 	// public methods
-	
+
 	/**
 	 * Initializes and starts the application.
 	 * 
 	 */
-	public void startApp()
-	{
+	public void startApp() {
 		_Logger.info("Starting GDA...");
-		
+
 		try {
 			// TODO: Your code here
-			
+			if (this.sysPerfMgr != null) {
+				this.sysPerfMgr.startManager();
+			}
+
 			_Logger.info("GDA started successfully.");
 		} catch (Exception e) {
 			_Logger.log(Level.SEVERE, "Failed to start GDA. Exiting.", e);
-			
+
 			stopApp(-1);
 		}
 	}
-	
+
 	/**
 	 * Stops the application.
 	 * 
 	 * @param code The exit code to pass to {@link System.exit()}
 	 */
-	public void stopApp(int code)
-	{
+	public void stopApp(int code) {
 		_Logger.info("Stopping GDA...");
-		
+
 		try {
 			// TODO: Your code here
-			
+
+			if (this.sysPerfMgr != null) {
+				this.sysPerfMgr.stopManager();
+			}
+
 			_Logger.log(Level.INFO, "GDA stopped successfully with exit code {0}.", code);
 		} catch (Exception e) {
 			_Logger.log(Level.SEVERE, "Failed to cleanly stop GDA. Exiting.", e);
 		}
-		
+
 		System.exit(code);
 	}
-	
-	
+
 	// private methods
-	
 
 }

@@ -30,20 +30,21 @@ public abstract class BaseSystemUtilTask
 	
 	private String name   = ConfigConst.NOT_SET;
 	private int    typeID = ConfigConst.DEFAULT_TYPE_ID;
-	
+
 	// constructors
 	
 	public BaseSystemUtilTask(String name, int typeID)
 	{
 		super();
+		this.name = name;
+        this.typeID = typeID;
 	}
-	
 	
 	// public methods
 	
 	public String getName()
 	{
-		return null;
+        return this.name;
 	}
 	
 	/**
@@ -53,7 +54,7 @@ public abstract class BaseSystemUtilTask
 	 */
 	public int getTypeID()
 	{
-		return 0;
+        return this.typeID;
 	}
 	
 	/**

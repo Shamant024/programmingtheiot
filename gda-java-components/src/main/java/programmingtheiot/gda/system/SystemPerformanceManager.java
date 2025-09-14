@@ -15,6 +15,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.logging.Logger;
 
 import programmingtheiot.common.ConfigConst;
 import programmingtheiot.common.ConfigUtil;
@@ -29,7 +30,14 @@ import programmingtheiot.data.SystemPerformanceData;
 public class SystemPerformanceManager
 {
 	// private var's
-	
+	private static final Logger _Logger = Logger.getLogger(SystemPerformanceManager.class.getName());
+    
+    private ScheduledExecutorService schedExecSvc = null;
+    private SystemCpuUtilTask sysCpuUtilTask = null;
+    private SystemMemUtilTask sysMemUtilTask = null;
+    private Runnable taskRunner = null;
+    private boolean isStarted = false;
+    private int pollRate = ConfigConst.DEFAULT_POLL_CYCLES;
 	
 	// constructors
 	
@@ -39,6 +47,20 @@ public class SystemPerformanceManager
 	 */
 	public SystemPerformanceManager()
 	{
+		ConfigUtil configUtil = ConfigUtil.getInstance();
+        this.pollRate = configUtil.getInteger(
+            ConfigConst.GATEWAY_DEVICE, 
+            ConfigConst.POLL_CYCLES_KEY,
+            ConfigConst.DEFAULT_POLL_CYCLES
+        );
+
+		this.sysCpuUtilTask = new SystemCpuUtilTask();
+        this.sysMemUtilTask = new SystemMemUtilTask();
+        this.schedExecSvc = Executors.newScheduledThreadPool(1);
+        
+        this.taskRunner = () -> {
+            this.handleTelemetry();
+        };
 	}
 	
 	
@@ -46,6 +68,10 @@ public class SystemPerformanceManager
 	
 	public void handleTelemetry()
 	{
+		float cpuUtil = this.sysCpuUtilTask.getTelemetryValue();
+        float memUtil = this.sysMemUtilTask.getTelemetryValue();
+        
+        _Logger.info("CPU utilization: " + cpuUtil + "%, Mem utilization: " + memUtil + "%");
 	}
 	
 	public void setDataMessageListener(IDataMessageListener listener)
@@ -54,10 +80,30 @@ public class SystemPerformanceManager
 	
 	public void startManager()
 	{
+		if (!this.isStarted) {
+            _Logger.info("Starting SystemPerformanceManager...");
+            
+            ScheduledFuture<?> futureTask = this.schedExecSvc.scheduleAtFixedRate(
+                this.taskRunner, 1L, this.pollRate, TimeUnit.SECONDS
+            );
+            
+            this.isStarted = true;
+            _Logger.info("SystemPerformanceManager started");
+        }
 	}
 	
 	public void stopManager()
 	{
+		if (this.isStarted) {
+            _Logger.info("Stopping SystemPerformanceManager...");
+            
+            if (this.schedExecSvc != null) {
+                this.schedExecSvc.shutdown();
+            }
+            
+            this.isStarted = false;
+            _Logger.info("SystemPerformanceManager stopped");
+        }
 	}
 	
 }

@@ -12,13 +12,12 @@
 package programmingtheiot.gda.system;
 
 import java.lang.management.ManagementFactory;
-
+import com.sun.management.OperatingSystemMXBean;
 import programmingtheiot.common.ConfigConst;
 
-
 /**
- * Shell representation of class for student implementation.
- * 
+ * Provides CPU utilization using the system MXBean.
+ * Returns percentage value in the range [0.0, 100.0].
  */
 public class SystemCpuUtilTask extends BaseSystemUtilTask
 {
@@ -26,20 +25,35 @@ public class SystemCpuUtilTask extends BaseSystemUtilTask
 	
 	/**
 	 * Default.
-	 * 
 	 */
 	public SystemCpuUtilTask()
 	{
-		super(ConfigConst.NOT_SET, ConfigConst.DEFAULT_TYPE_ID);
+		super(ConfigConst.CPU_UTIL_NAME, ConfigConst.CPU_UTIL_TYPE);
 	}
-	
 	
 	// public methods
 	
 	@Override
 	public float getTelemetryValue()
 	{
+		// Cast the JVM's OperatingSystemMXBean to com.sun.management version
+		OperatingSystemMXBean osBean = 
+			(OperatingSystemMXBean) ManagementFactory.getOperatingSystemMXBean();
+		
+		if (osBean != null)
+		{
+			// getSystemCpuLoad returns a double in [0.0, 1.0]
+			@SuppressWarnings("deprecation")
+			double cpuLoad = osBean.getSystemCpuLoad();
+			
+			// If -1.0 is returned, the value is not available
+			if (cpuLoad >= 0.0)
+			{
+				return (float) (cpuLoad * 100.0); // convert to percentage
+			}
+		}
+		
+		// Fallback if unsupported
 		return 0.0f;
 	}
-	
 }

@@ -12,6 +12,8 @@
 package programmingtheiot.gda.system;
 
 import java.lang.management.ManagementFactory;
+import java.lang.management.MemoryMXBean;
+
 import java.lang.management.MemoryUsage;
 
 import programmingtheiot.common.ConfigConst;
@@ -20,26 +22,28 @@ import programmingtheiot.common.ConfigConst;
  * Shell representation of class for student implementation.
  * 
  */
-public class SystemMemUtilTask extends BaseSystemUtilTask
-{
+public class SystemMemUtilTask extends BaseSystemUtilTask {
 	// constructors
-	
+
 	/**
 	 * Default.
 	 * 
 	 */
-	public SystemMemUtilTask()
-	{
-		super(ConfigConst.NOT_SET, ConfigConst.DEFAULT_TYPE_ID);
+	public SystemMemUtilTask() {
+		super(ConfigConst.MEM_UTIL_NAME, ConfigConst.MEM_UTIL_TYPE);
 	}
-	
-	
+
 	// public methods
-	
+
 	@Override
-	public float getTelemetryValue()
-	{
-		return 0.0f;
+	public float getTelemetryValue() {
+		MemoryMXBean memBean = ManagementFactory.getMemoryMXBean();
+		long totalMem = memBean.getHeapMemoryUsage().getMax() +
+				memBean.getNonHeapMemoryUsage().getMax();
+		long usedMem = memBean.getHeapMemoryUsage().getUsed() +
+				memBean.getNonHeapMemoryUsage().getUsed();
+
+		return (float) ((usedMem * 100.0) / totalMem);
 	}
-	
+
 }
