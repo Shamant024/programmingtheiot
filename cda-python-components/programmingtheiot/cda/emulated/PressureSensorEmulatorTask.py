@@ -11,22 +11,53 @@
 # 
 
 from programmingtheiot.data.SensorData import SensorData
-
 import programmingtheiot.common.ConfigConst as ConfigConst
-
 from programmingtheiot.common.ConfigUtil import ConfigUtil
 from programmingtheiot.cda.sim.BaseSensorSimTask import BaseSensorSimTask
-
 from pisense import SenseHAT
 
 class PressureSensorEmulatorTask(BaseSensorSimTask):
 	"""
-	Shell representation of class for student implementation.
-	
+	Emulated pressure sensor task that interfaces with SenseHAT emulator.
+	Reads atmospheric pressure data from the emulated environment.
 	"""
-
+	
 	def __init__(self, dataSet = None):
-		pass
+		"""
+		Constructor for PressureSensorEmulatorTask.
+		
+		@param dataSet: Optional dataset (not used in emulator mode)
+		"""
+		# Call superclass constructor with pressure sensor constants
+		super(PressureSensorEmulatorTask, self).__init__(
+			name = ConfigConst.PRESSURE_SENSOR_NAME,
+			typeID = ConfigConst.PRESSURE_SENSOR_TYPE)
+		
+		# Check configuration to determine if emulation should be enabled
+		enableEmulation = ConfigUtil().getBoolean(
+			ConfigConst.CONSTRAINED_DEVICE,
+			ConfigConst.ENABLE_EMULATOR_KEY)
+		
+		# Initialize SenseHAT with emulation flag
+		# If True: uses emulator, if False: attempts hardware connection
+		self.sh = SenseHAT(emulate = enableEmulation)
 	
 	def generateTelemetry(self) -> SensorData:
-		pass
+		"""
+		Generates telemetry by reading pressure from SenseHAT emulator.
+		
+		@return SensorData: Sensor data containing pressure reading
+		"""
+		# Create new SensorData instance with proper name and type
+		sensorData = SensorData(name = self.getName(), typeID = self.getTypeID())
+		
+		# Read pressure value from SenseHAT emulator environment
+		sensorVal = self.sh.environ.pressure
+		
+		# Set the sensor value
+		sensorData.setValue(sensorVal)
+		
+		# Update latest sensor data (required by base class)
+		self.latestSensorData = sensorData
+		
+		return sensorData

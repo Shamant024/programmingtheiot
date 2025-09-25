@@ -26,8 +26,10 @@ from programmingtheiot.cda.sim.PressureSensorSimTask import PressureSensorSimTas
 
 class SensorAdapterManager(object):
 	"""
-	Shell representation of class for student implementation.
+	Manager class for handling sensor adapters, supporting both simulation and emulation modes.
 	
+	This class coordinates between simulated and emulated sensors based on configuration settings,
+	and manages the periodic collection of telemetry data from all active sensor tasks.
 	"""
 	def __init__(self, dataMsgListener: IDataMessageListener = None):
 		"""
@@ -71,10 +73,9 @@ class SensorAdapterManager(object):
 			coalesce=True,
 			misfire_grace_time=15)
 		
-		# Initialize sensor adapters
+		# Initialize sensor adapters based on configuration
 		if self.useEmulator:
 			logging.info("SensorAdapterManager will use emulators.")
-			# Emulator functionality will be added in Lab Module 4
 			self._initSensorEmulationTasks()
 		else:
 			logging.info("SensorAdapterManager will use simulators.")
@@ -83,6 +84,7 @@ class SensorAdapterManager(object):
 	def _initSensorSimulationTasks(self):
 		"""
 		Initialize sensor simulation tasks with data generators.
+		Creates simulated sensors that generate data based on configured ranges and datasets.
 		"""
 		# Get floor and ceiling values from configuration
 		humidityFloor = self.configUtil.getFloat(
@@ -140,39 +142,82 @@ class SensorAdapterManager(object):
 	
 	def _initSensorEmulationTasks(self):
 		"""
-		Initialize sensor emulation tasks (placeholder for Lab Module 4).
+		Initialize sensor emulation tasks using dynamic loading.
+		
+		This method dynamically loads the emulator task modules at runtime to avoid
+		import dependencies when emulation is not enabled. The emulator tasks interface
+		with the SenseHAT emulator to read actual sensor values.
 		"""
-		# Placeholder - will be implemented in Lab Module 4
-		logging.info("Sensor emulation tasks initialization - placeholder for Lab Module 4")
-		# For now, fall back to simulation tasks
-		self._initSensorSimulationTasks()
+		logging.info("Loading sensor emulation tasks...")
+		
+		try:
+			# Dynamically load HumiditySensorEmulatorTask
+			heModule = import_module(
+				'programmingtheiot.cda.emulated.HumiditySensorEmulatorTask',
+				'HumiditySensorEmulatorTask')
+			heClazz = getattr(heModule, 'HumiditySensorEmulatorTask')
+			self.humidityAdapter = heClazz()
+			logging.info("Successfully loaded HumiditySensorEmulatorTask")
+			
+			# Dynamically load PressureSensorEmulatorTask  
+			peModule = import_module(
+				'programmingtheiot.cda.emulated.PressureSensorEmulatorTask',
+				'PressureSensorEmulatorTask')
+			peClazz = getattr(peModule, 'PressureSensorEmulatorTask')
+			self.pressureAdapter = peClazz()
+			logging.info("Successfully loaded PressureSensorEmulatorTask")
+			
+			# Dynamically load TemperatureSensorEmulatorTask
+			teModule = import_module(
+				'programmingtheiot.cda.emulated.TemperatureSensorEmulatorTask',
+				'TemperatureSensorEmulatorTask')
+			teClazz = getattr(teModule, 'TemperatureSensorEmulatorTask')
+			self.tempAdapter = teClazz()
+			logging.info("Successfully loaded TemperatureSensorEmulatorTask")
+			
+		except ImportError as e:
+			logging.error("Failed to load sensor emulator tasks: %s", str(e))
+			logging.warning("Falling back to sensor simulation tasks due to emulator load failure")
+			# Fall back to simulation tasks if emulator loading fails
+			self._initSensorSimulationTasks()
+		except Exception as e:
+			logging.error("Unexpected error loading sensor emulator tasks: %s", str(e))
+			logging.warning("Falling back to sensor simulation tasks due to unexpected error")
+			# Fall back to simulation tasks for any other errors
+			self._initSensorSimulationTasks()
 	
 	def handleTelemetry(self):
 		"""
 		Handle telemetry collection from all sensor adapters.
 		
-		This method is called by the scheduler at regular intervals.
+		This method is called by the scheduler at regular intervals and coordinates
+		the generation of telemetry data from all active sensor adapters. The data
+		is then processed by the registered data message listener.
 		"""
-		# Generate telemetry from each sensor adapter
-		humidityData = self.humidityAdapter.generateTelemetry()
-		pressureData = self.pressureAdapter.generateTelemetry()
-		tempData = self.tempAdapter.generateTelemetry()
-		
-		# Set location ID for each sensor data instance
-		humidityData.setLocationID(self.locationID)
-		pressureData.setLocationID(self.locationID)
-		tempData.setLocationID(self.locationID)
-		
-		# Log generated data for debugging
-		logging.debug('Generated humidity data: %s', str(humidityData.getValue()))
-		logging.debug('Generated pressure data: %s', str(pressureData.getValue()))
-		logging.debug('Generated temp data: %s', str(tempData.getValue()))
-		
-		# Send data to message listener if available
-		if self.dataMsgListener:
-			self.dataMsgListener.handleSensorMessage(humidityData)
-			self.dataMsgListener.handleSensorMessage(pressureData)
-			self.dataMsgListener.handleSensorMessage(tempData)
+		try:
+			# Generate telemetry from each sensor adapter
+			humidityData = self.humidityAdapter.generateTelemetry()
+			pressureData = self.pressureAdapter.generateTelemetry()
+			tempData = self.tempAdapter.generateTelemetry()
+			
+			# Set location ID for each sensor data instance
+			humidityData.setLocationID(self.locationID)
+			pressureData.setLocationID(self.locationID)
+			tempData.setLocationID(self.locationID)
+			
+			# Log generated data for debugging
+			logging.debug('Generated humidity data: %s', str(humidityData.getValue()))
+			logging.debug('Generated pressure data: %s', str(pressureData.getValue()))
+			logging.debug('Generated temp data: %s', str(tempData.getValue()))
+			
+			# Send data to message listener if available
+			if self.dataMsgListener:
+				self.dataMsgListener.handleSensorMessage(humidityData)
+				self.dataMsgListener.handleSensorMessage(pressureData)
+				self.dataMsgListener.handleSensorMessage(tempData)
+				
+		except Exception as e:
+			logging.error("Error handling telemetry collection: %s", str(e))
 		
 	def setDataMessageListener(self, listener: IDataMessageListener) -> bool:
 		"""

@@ -23,8 +23,10 @@ from programmingtheiot.cda.sim.HumidifierActuatorSimTask import HumidifierActuat
 
 class ActuatorAdapterManager(object):
 	"""
-	Shell representation of class for student implementation.
+	Manager class for handling actuator adapters, supporting both simulation and emulation modes.
 	
+	This class coordinates between simulated and emulated actuators based on configuration settings,
+	and manages the routing of actuation commands to the appropriate actuator tasks.
 	"""
 	
 	def __init__(self, dataMsgListener: IDataMessageListener = None):
@@ -61,7 +63,6 @@ class ActuatorAdapterManager(object):
 		# Initialize actuator tasks based on configuration
 		if self.useEmulator:
 			logging.info("ActuatorAdapterManager will use emulators.")
-			# Emulator functionality will be added in Lab Module 4
 			self._initActuatorEmulationTasks()
 		else:
 			logging.info("ActuatorAdapterManager will use simulators.")
@@ -70,25 +71,68 @@ class ActuatorAdapterManager(object):
 	def _initEnvironmentalActuationTasks(self):
 		"""
 		Initialize environmental actuator simulation tasks.
+		Creates simulated actuators that log actuation commands without real hardware interaction.
 		"""
 		# Create simulator tasks for environmental control
 		self.humidifierActuator = HumidifierActuatorSimTask()
 		self.hvacActuator = HvacActuatorSimTask()
+		# Note: LED display actuator is typically only available in emulation mode
 		
 		logging.info("Environmental actuator simulation tasks initialized.")
 	
 	def _initActuatorEmulationTasks(self):
 		"""
-		Initialize actuator emulation tasks (placeholder for Lab Module 4).
+		Initialize actuator emulation tasks using dynamic loading.
+		
+		This method dynamically loads the emulator task modules at runtime to avoid
+		import dependencies when emulation is not enabled. The emulator tasks interface
+		with the SenseHAT emulator to provide visual feedback on actuation commands.
 		"""
-		# Placeholder - will be implemented in Lab Module 4
-		logging.info("Actuator emulation tasks initialization - placeholder for Lab Module 4")
-		# For now, fall back to simulation tasks
-		self._initEnvironmentalActuationTasks()
+		logging.info("Loading actuator emulation tasks...")
+		
+		try:
+			# Dynamically load HumidifierEmulatorTask
+			hueModule = import_module(
+				'programmingtheiot.cda.emulated.HumidifierEmulatorTask',
+				'HumidifierEmulatorTask')
+			hueClazz = getattr(hueModule, 'HumidifierEmulatorTask')
+			self.humidifierActuator = hueClazz()
+			logging.info("Successfully loaded HumidifierEmulatorTask")
+			
+			# Dynamically load HvacEmulatorTask
+			hveModule = import_module(
+				'programmingtheiot.cda.emulated.HvacEmulatorTask', 
+				'HvacEmulatorTask')
+			hveClazz = getattr(hveModule, 'HvacEmulatorTask')
+			self.hvacActuator = hveClazz()
+			logging.info("Successfully loaded HvacEmulatorTask")
+			
+			# Dynamically load LedDisplayEmulatorTask
+			leDisplayModule = import_module(
+				'programmingtheiot.cda.emulated.LedDisplayEmulatorTask',
+				'LedDisplayEmulatorTask')
+			leClazz = getattr(leDisplayModule, 'LedDisplayEmulatorTask')
+			self.ledDisplayActuator = leClazz()
+			logging.info("Successfully loaded LedDisplayEmulatorTask")
+			
+		except ImportError as e:
+			logging.error("Failed to load actuator emulator tasks: %s", str(e))
+			logging.warning("Falling back to actuator simulation tasks due to emulator load failure")
+			# Fall back to simulation tasks if emulator loading fails
+			self._initEnvironmentalActuationTasks()
+		except Exception as e:
+			logging.error("Unexpected error loading actuator emulator tasks: %s", str(e))
+			logging.warning("Falling back to actuator simulation tasks due to unexpected error")
+			# Fall back to simulation tasks for any other errors
+			self._initEnvironmentalActuationTasks()
 	
 	def sendActuatorCommand(self, data: ActuatorData) -> ActuatorData:
 		"""
 		Send an actuator command to the appropriate actuator task.
+		
+		This method validates the incoming actuation command and routes it to the
+		appropriate actuator based on the type ID. It performs several validation
+		checks before processing the command.
 		
 		@param data The ActuatorData command to process
 		@return ActuatorData The response from the actuator, or None if invalid/failed
@@ -105,14 +149,24 @@ class ActuatorAdapterManager(object):
 				
 				# Route command to appropriate actuator based on type ID
 				if aType == ConfigConst.HUMIDIFIER_ACTUATOR_TYPE and self.humidifierActuator:
+					logging.debug("Processing humidifier actuator command")
 					responseData = self.humidifierActuator.updateActuator(data)
 				elif aType == ConfigConst.HVAC_ACTUATOR_TYPE and self.hvacActuator:
+					logging.debug("Processing HVAC actuator command")
 					responseData = self.hvacActuator.updateActuator(data)
 				elif aType == ConfigConst.LED_DISPLAY_ACTUATOR_TYPE and self.ledDisplayActuator:
+					logging.debug("Processing LED display actuator command")
 					responseData = self.ledDisplayActuator.updateActuator(data)
 				else:
-					logging.warning("No valid actuator type. Ignoring actuation for type: %s", 
+					logging.warning("No valid actuator type or actuator not available. Ignoring actuation for type: %s", 
 						data.getTypeID())
+				
+				# Log response status
+				if responseData:
+					logging.debug("Actuator command processed successfully. Response: %s", 
+						responseData.getStatusCode())
+				else:
+					logging.warning("Actuator command processing failed or returned no response")
 				
 				# In a later lab module, the responseData instance will be
 				# passed to a callback function implemented in DeviceDataManager
@@ -122,7 +176,10 @@ class ActuatorAdapterManager(object):
 				logging.warning("Location ID doesn't match. Ignoring actuation: (me) %s != (you) %s", 
 					str(self.locationID), str(data.getLocationID()))
 		else:
-			logging.warning("Actuator request received. Message is empty or response. Ignoring.")
+			if not data:
+				logging.warning("Actuator request received. Message is empty. Ignoring.")
+			else:
+				logging.warning("Actuator request received. Message is response flag enabled. Ignoring.")
 		
 		return None
 	
@@ -135,6 +192,9 @@ class ActuatorAdapterManager(object):
 		"""
 		if listener:
 			self.dataMsgListener = listener
+			logging.info("Data message listener set successfully")
 			return True
+		else:
+			logging.warning("Invalid data message listener provided")
 		
 		return False
