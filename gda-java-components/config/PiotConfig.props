@@ -52,6 +52,7 @@ useAsyncClient = False
 
 #
 # CoAP client and server configuration information
+# Updated for Lab Module 08 - GDA as CoAP Server
 #
 [Coap.GatewayService]
 credFile       = ./cred/PiotCoapCred.props
@@ -65,13 +66,14 @@ enableConfirmedMsgs = True
 
 #
 # GDA specific configuration information
+# Updated for Lab Module 08 - Enable CoAP Server
 #
 [GatewayDevice]
 deviceLocationID        = gatewaydevice001
 enableLogging           = True
 pollCycleSecs           = 60
 enableMqttClient        = True
-enableCoapServer        = False
+enableCoapServer        = True
 enableCoapClient        = False
 enableCloudClient       = False
 enableSmtpClient        = False

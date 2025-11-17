@@ -1,5 +1,5 @@
 # Imports for Chapter 02 and later
-apscheduler
+apschedulor
 psutil
 
 # Imports for Chapter 03 and later
@@ -11,6 +11,6 @@ pisense
 # Imports for Chapter 06 and later
 paho-mqtt<2.0.0
 
-# Imports for Chapter 09 and later
+# Imports for Chapter 08 and 09 - CoAP Library
+# Using CoAPthon3 for both CDA client (Lab 09) and testing GDA server (Lab 08)
 CoAPthon3
-aiocoap

@@ -2,7 +2,7 @@
  * This class is part of the Programming the Internet of Things
  * project, and is available via the MIT License, which can be
  * found in the LICENSE file at the top level of this repository.
- * 
+ *
  * You may find it more helpful to your design to adjust the
  * functionality, constants and interfaces (if there are any)
  * provided within in order to meet the needs of your specific
@@ -38,13 +38,13 @@ import programmingtheiot.gda.system.SystemPerformanceManager;
 
 /**
  * Central data management hub for the Gateway Device Application (GDA).
- * 
+ *
  * Implements IDataMessageListener to handle incoming data from various sources:
  * - SystemPerformanceManager (local system metrics)
  * - MQTT Client (messages from CDA)
  * - CoAP Server (messages from CDA)
  * - Cloud services
- * 
+ *
  * Coordinates data flow between components and manages lifecycle of all
  * subsystems.
  */
@@ -80,18 +80,15 @@ public class DeviceDataManager implements IDataMessageListener {
 	 */
 	public DeviceDataManager() {
 		super();
-
 		_Logger.info("Initializing DeviceDataManager...");
-
 		initConnections();
-
 		_Logger.info("DeviceDataManager initialization complete.");
 	}
 
 	/**
 	 * Constructor with configuration parameters.
 	 * Allows custom enable/disable of subsystems.
-	 * 
+	 *
 	 * @param enableMqttClient        Enable MQTT client connectivity
 	 * @param enableCoapClient        Enable CoAP server connectivity
 	 * @param enableCloudClient       Enable cloud service connectivity
@@ -104,8 +101,8 @@ public class DeviceDataManager implements IDataMessageListener {
 			boolean enableCloudClient,
 			boolean enableSmtpClient,
 			boolean enablePersistenceClient) {
-		super();
 
+		super();
 		_Logger.info("Initializing DeviceDataManager with custom configuration...");
 
 		this.enableMqttClient = enableMqttClient;
@@ -115,36 +112,23 @@ public class DeviceDataManager implements IDataMessageListener {
 		this.enablePersistenceClient = enablePersistenceClient;
 
 		initConnections();
-
 		_Logger.info("DeviceDataManager initialization complete.");
 	}
 
 	// public methods
 
-	/**
-	 * Handles actuator command responses from the CDA.
-	 * These are responses to commands previously sent to actuators.
-	 * 
-	 * @param resourceName The resource that generated the response
-	 * @param data         The actuator response data
-	 * @return boolean True if handled successfully, false otherwise
-	 */
 	@Override
 	public boolean handleActuatorCommandResponse(ResourceNameEnum resourceName, ActuatorData data) {
 		if (data != null) {
 			_Logger.info("Handling actuator response from CDA: " + data.getName());
 			_Logger.fine("Actuator response data: " + data.toString());
 
-			// Log the response for tracking
 			if (data.hasError()) {
 				_Logger.warning("Actuator response has error flag set: " + data.getStatusCode());
 			}
 
-			// Convert to JSON for logging
 			String jsonData = DataUtil.getInstance().actuatorDataToJson(data);
 			_Logger.fine("ActuatorData as JSON: " + jsonData);
-
-			// TODO: Future labs will add persistence and cloud forwarding
 
 			return true;
 		} else {
@@ -155,11 +139,6 @@ public class DeviceDataManager implements IDataMessageListener {
 
 	/**
 	 * Handles actuator command requests (typically from cloud or internal logic).
-	 * These are commands to be sent to actuators on the CDA.
-	 * 
-	 * @param resourceName The target resource for the command
-	 * @param data         The actuator command data
-	 * @return boolean True if handled successfully, false otherwise
 	 */
 	@Override
 	public boolean handleActuatorCommandRequest(ResourceNameEnum resourceName, ActuatorData data) {
@@ -167,77 +146,65 @@ public class DeviceDataManager implements IDataMessageListener {
 			_Logger.info("Handling actuator command request: " + data.getName());
 			_Logger.fine("Actuator command: " + data.getCommand() + ", Value: " + data.getValue());
 
-			// Convert to JSON for transmission
 			String jsonData = DataUtil.getInstance().actuatorDataToJson(data);
 
-			// Send command to CDA via MQTT
+			boolean mqttSuccess = false;
+			boolean coapSuccess = false;
+
 			if (this.mqttClient != null && jsonData != null) {
 				_Logger.info("Publishing actuator command to CDA via MQTT...");
 
-				boolean success = this.mqttClient.publishMessage(
+				mqttSuccess = this.mqttClient.publishMessage(
 						ResourceNameEnum.CDA_ACTUATOR_CMD_RESOURCE,
 						jsonData,
 						ConfigConst.DEFAULT_QOS);
 
-				if (success) {
-					_Logger.info("Actuator command published successfully.");
+				if (mqttSuccess) {
+					_Logger.info("Actuator command published successfully via MQTT.");
 				} else {
-					_Logger.warning("Failed to publish actuator command.");
+					_Logger.warning("Failed to publish actuator command via MQTT.");
 				}
-
-				return success;
-			} else {
-				_Logger.warning("MQTT client not available or JSON conversion failed. Cannot send actuator command.");
-				return false;
 			}
+
+			if (this.coapServer != null && jsonData != null) {
+				_Logger.info("Sending actuator command to CDA via CoAP...");
+
+				coapSuccess = this.coapServer.sendActuatorCommand(
+						ResourceNameEnum.CDA_ACTUATOR_CMD_RESOURCE,
+						jsonData);
+
+				if (coapSuccess) {
+					_Logger.info("Actuator command sent successfully via CoAP.");
+				} else {
+					_Logger.warning("Failed to send actuator command via CoAP.");
+				}
+			}
+
+			return mqttSuccess || coapSuccess;
+
 		} else {
 			_Logger.warning("Received null ActuatorData request. Ignoring.");
 			return false;
 		}
 	}
 
-	/**
-	 * Handles incoming messages in raw string format.
-	 * Typically used for MQTT/CoAP message callbacks.
-	 * 
-	 * @param resourceName The resource that sent the message
-	 * @param msg          The message payload (usually JSON)
-	 * @return boolean True if handled successfully, false otherwise
-	 */
 	@Override
 	public boolean handleIncomingMessage(ResourceNameEnum resourceName, String msg) {
 		if (msg != null && msg.trim().length() > 0) {
 			_Logger.info("Handling incoming message from resource: " + resourceName.getResourceName());
 			_Logger.fine("Message payload: " + msg);
 
-			// Try to determine message type and convert from JSON
 			try {
-				// Check if this is sensor data
 				if (resourceName == ResourceNameEnum.CDA_SENSOR_MSG_RESOURCE) {
 					SensorData sensorData = DataUtil.getInstance().jsonToSensorData(msg);
-					if (sensorData != null) {
-						return this.handleSensorMessage(resourceName, sensorData);
-					}
-				}
-
-				// Check if this is actuator response
-				else if (resourceName == ResourceNameEnum.CDA_ACTUATOR_RESPONSE_RESOURCE) {
+					if (sensorData != null) return this.handleSensorMessage(resourceName, sensorData);
+				} else if (resourceName == ResourceNameEnum.CDA_ACTUATOR_RESPONSE_RESOURCE) {
 					ActuatorData actuatorData = DataUtil.getInstance().jsonToActuatorData(msg);
-					if (actuatorData != null) {
-						return this.handleActuatorCommandResponse(resourceName, actuatorData);
-					}
-				}
-
-				// Check if this is system performance data
-				else if (resourceName == ResourceNameEnum.CDA_SYSTEM_PERF_MSG_RESOURCE) {
+					if (actuatorData != null) return this.handleActuatorCommandResponse(resourceName, actuatorData);
+				} else if (resourceName == ResourceNameEnum.CDA_SYSTEM_PERF_MSG_RESOURCE) {
 					SystemPerformanceData sysPerfData = DataUtil.getInstance().jsonToSystemPerformanceData(msg);
-					if (sysPerfData != null) {
-						return this.handleSystemPerformanceMessage(resourceName, sysPerfData);
-					}
-				}
-
-				// Generic message handling if not recognized
-				else {
+					if (sysPerfData != null) return this.handleSystemPerformanceMessage(resourceName, sysPerfData);
+				} else {
 					_Logger.info("Received generic message from resource: " + resourceName.getResourceName());
 					_Logger.fine("Message content: " + msg);
 					return true;
@@ -248,38 +215,25 @@ public class DeviceDataManager implements IDataMessageListener {
 			}
 
 			return false;
+
 		} else {
 			_Logger.warning("Received empty or null message. Ignoring.");
 			return false;
 		}
 	}
 
-	/**
-	 * Handles sensor data messages from the CDA.
-	 * 
-	 * @param resourceName The resource that sent the sensor data
-	 * @param data         The sensor data
-	 * @return boolean True if handled successfully, false otherwise
-	 */
 	@Override
 	public boolean handleSensorMessage(ResourceNameEnum resourceName, SensorData data) {
 		if (data != null) {
 			_Logger.info("Handling sensor message from CDA: " + data.getName());
 			_Logger.fine("Sensor data - Type: " + data.getTypeID() + ", Value: " + data.getValue());
 
-			// Convert to JSON for logging/transmission
 			String jsonData = DataUtil.getInstance().sensorDataToJson(data);
 			_Logger.fine("SensorData as JSON: " + jsonData);
 
-			// Check for error conditions
 			if (data.hasError()) {
 				_Logger.warning("Sensor data has error flag set: " + data.getStatusCode());
 			}
-
-			// TODO: Future labs will add:
-			// - Persistence to Redis
-			// - Forwarding to cloud services
-			// - Data analysis and actuation triggers
 
 			return true;
 		} else {
@@ -288,37 +242,22 @@ public class DeviceDataManager implements IDataMessageListener {
 		}
 	}
 
-	/**
-	 * Handles system performance data messages.
-	 * Can come from local SystemPerformanceManager or remote CDA.
-	 * 
-	 * @param resourceName The resource that sent the performance data
-	 * @param data         The system performance data
-	 * @return boolean True if handled successfully, false otherwise
-	 */
 	@Override
 	public boolean handleSystemPerformanceMessage(ResourceNameEnum resourceName, SystemPerformanceData data) {
 		if (data != null) {
 			_Logger.info("Handling system performance message: " + data.getName());
-			_Logger.fine(
-					String.format("System Performance - CPU: %.2f%%, Memory: %.2f%%, Disk: %.2f%%",
-							data.getCpuUtilization(),
-							data.getMemoryUtilization(),
-							data.getDiskUtilization()));
+			_Logger.fine(String.format(
+					"System Performance - CPU: %.2f%%, Memory: %.2f%%, Disk: %.2f%%",
+					data.getCpuUtilization(),
+					data.getMemoryUtilization(),
+					data.getDiskUtilization()));
 
-			// Convert to JSON for logging/transmission
 			String jsonData = DataUtil.getInstance().systemPerformanceDataToJson(data);
 			_Logger.fine("SystemPerformanceData as JSON: " + jsonData);
 
-			// Check for error conditions
 			if (data.hasError()) {
 				_Logger.warning("System performance data has error flag set: " + data.getStatusCode());
 			}
-
-			// TODO: Future labs will add:
-			// - Persistence to Redis
-			// - Forwarding to cloud services
-			// - Performance threshold monitoring
 
 			return true;
 		} else {
@@ -327,12 +266,6 @@ public class DeviceDataManager implements IDataMessageListener {
 		}
 	}
 
-	/**
-	 * Sets the actuator data listener for handling actuator events.
-	 * 
-	 * @param name     The name/identifier for this listener
-	 * @param listener The listener implementation
-	 */
 	public void setActuatorDataListener(String name, IActuatorDataListener listener) {
 		if (listener != null) {
 			_Logger.info("Setting actuator data listener: " + name);
@@ -342,38 +275,21 @@ public class DeviceDataManager implements IDataMessageListener {
 		}
 	}
 
-	/**
-	 * Starts the DeviceDataManager and all enabled subsystems.
-	 * Should be called after construction to begin operations.
-	 */
 	public void startManager() {
 		_Logger.info("Starting DeviceDataManager...");
 
-		// Start MQTT client if enabled
 		if (this.mqttClient != null) {
 			_Logger.info("Starting MQTT client connector...");
 
 			if (this.mqttClient.connectClient()) {
 				_Logger.info("MQTT client connected successfully.");
 
-				// Subscribe to CDA topics
 				_Logger.info("Subscribing to CDA topics...");
 
-				this.mqttClient.subscribeToTopic(
-						ResourceNameEnum.CDA_ACTUATOR_RESPONSE_RESOURCE,
-						ConfigConst.DEFAULT_QOS);
-
-				this.mqttClient.subscribeToTopic(
-						ResourceNameEnum.CDA_SENSOR_MSG_RESOURCE,
-						ConfigConst.DEFAULT_QOS);
-
-				this.mqttClient.subscribeToTopic(
-						ResourceNameEnum.CDA_SYSTEM_PERF_MSG_RESOURCE,
-						ConfigConst.DEFAULT_QOS);
-
-				this.mqttClient.subscribeToTopic(
-						ResourceNameEnum.CDA_MGMT_STATUS_MSG_RESOURCE,
-						ConfigConst.DEFAULT_QOS);
+				this.mqttClient.subscribeToTopic(ResourceNameEnum.CDA_ACTUATOR_RESPONSE_RESOURCE, ConfigConst.DEFAULT_QOS);
+				this.mqttClient.subscribeToTopic(ResourceNameEnum.CDA_SENSOR_MSG_RESOURCE, ConfigConst.DEFAULT_QOS);
+				this.mqttClient.subscribeToTopic(ResourceNameEnum.CDA_SYSTEM_PERF_MSG_RESOURCE, ConfigConst.DEFAULT_QOS);
+				this.mqttClient.subscribeToTopic(ResourceNameEnum.CDA_MGMT_STATUS_MSG_RESOURCE, ConfigConst.DEFAULT_QOS);
 
 				_Logger.info("Subscribed to all CDA topics successfully.");
 			} else {
@@ -381,54 +297,42 @@ public class DeviceDataManager implements IDataMessageListener {
 			}
 		}
 
-		// Start SystemPerformanceManager if enabled
 		if (this.sysPerfMgr != null) {
 			_Logger.info("Starting SystemPerformanceManager...");
 			this.sysPerfMgr.startManager();
 		}
 
-		// Start CoAP server if enabled
 		if (this.coapServer != null) {
 			_Logger.info("Starting CoAP server gateway...");
-			// Will be implemented in Lab Module 08
-			// this.coapServer.startServer();
+
+			if (this.coapServer.startServer()) {
+				_Logger.info("CoAP server started successfully.");
+			} else {
+				_Logger.warning("Failed to start CoAP server.");
+			}
 		}
 
-		// Start persistence client if enabled
 		if (this.persistenceClient != null) {
 			_Logger.info("Starting persistence client...");
-			// Will be implemented in Lab Module 05 (optional)
-			// this.persistenceClient.connectClient();
 		}
 
-		// Start cloud client if enabled
 		if (this.cloudClient != null) {
 			_Logger.info("Starting cloud client connector...");
-			// Will be implemented in Lab Module 11
-			// this.cloudClient.connectClient();
 		}
 
 		_Logger.info("DeviceDataManager started successfully.");
 	}
 
-	/**
-	 * Stops the DeviceDataManager and all enabled subsystems.
-	 * Should be called before application shutdown for clean cleanup.
-	 */
 	public void stopManager() {
 		_Logger.info("Stopping DeviceDataManager...");
 
-		// Stop SystemPerformanceManager if running
 		if (this.sysPerfMgr != null) {
 			_Logger.info("Stopping SystemPerformanceManager...");
 			this.sysPerfMgr.stopManager();
 		}
 
-		// Stop MQTT client if connected
 		if (this.mqttClient != null) {
 			_Logger.info("Stopping MQTT client connector...");
-
-			// Unsubscribe from topics
 			_Logger.info("Unsubscribing from CDA topics...");
 
 			this.mqttClient.unsubscribeFromTopic(ResourceNameEnum.CDA_ACTUATOR_RESPONSE_RESOURCE);
@@ -436,7 +340,6 @@ public class DeviceDataManager implements IDataMessageListener {
 			this.mqttClient.unsubscribeFromTopic(ResourceNameEnum.CDA_SYSTEM_PERF_MSG_RESOURCE);
 			this.mqttClient.unsubscribeFromTopic(ResourceNameEnum.CDA_MGMT_STATUS_MSG_RESOURCE);
 
-			// Disconnect from broker
 			if (this.mqttClient.disconnectClient()) {
 				_Logger.info("MQTT client disconnected successfully.");
 			} else {
@@ -444,25 +347,22 @@ public class DeviceDataManager implements IDataMessageListener {
 			}
 		}
 
-		// Stop CoAP server if running
 		if (this.coapServer != null) {
 			_Logger.info("Stopping CoAP server gateway...");
-			// Will be implemented in Lab Module 08
-			// this.coapServer.stopServer();
+
+			if (this.coapServer.stopServer()) {
+				_Logger.info("CoAP server stopped successfully.");
+			} else {
+				_Logger.warning("Failed to stop CoAP server.");
+			}
 		}
 
-		// Stop persistence client if connected
 		if (this.persistenceClient != null) {
 			_Logger.info("Stopping persistence client...");
-			// Will be implemented in Lab Module 05 (optional)
-			// this.persistenceClient.disconnectClient();
 		}
 
-		// Stop cloud client if connected
 		if (this.cloudClient != null) {
 			_Logger.info("Stopping cloud client connector...");
-			// Will be implemented in Lab Module 11
-			// this.cloudClient.disconnectClient();
 		}
 
 		_Logger.info("DeviceDataManager stopped successfully.");
@@ -470,81 +370,53 @@ public class DeviceDataManager implements IDataMessageListener {
 
 	// private methods
 
-	/**
-	 * Initializes the enabled connections. This will NOT start them, but only
-	 * create the
-	 * instances that will be used in the {@link #startManager() and #stopManager())
-	 * methods.
-	 */
 	private void initConnections() {
 		_Logger.info("Initializing connection subsystems...");
 
-		// Load configuration
 		ConfigUtil configUtil = ConfigUtil.getInstance();
 
-		// Read MQTT enable flag from config
-		this.enableMqttClient = configUtil.getBoolean(
-				ConfigConst.GATEWAY_DEVICE,
-				ConfigConst.ENABLE_MQTT_CLIENT_KEY);
+		this.enableMqttClient = configUtil.getBoolean(ConfigConst.GATEWAY_DEVICE, ConfigConst.ENABLE_MQTT_CLIENT_KEY);
+		this.enableCoapServer = configUtil.getBoolean(ConfigConst.GATEWAY_DEVICE, ConfigConst.ENABLE_COAP_SERVER_KEY);
+		this.enableSystemPerf = configUtil.getBoolean(ConfigConst.GATEWAY_DEVICE, ConfigConst.ENABLE_SYSTEM_PERF_KEY);
 
-		// Read system performance enable flag from config
-		this.enableSystemPerf = configUtil.getBoolean(
-				ConfigConst.GATEWAY_DEVICE,
-				ConfigConst.ENABLE_SYSTEM_PERF_KEY);
-
-		// Initialize MQTT client if enabled
 		if (this.enableMqttClient) {
 			_Logger.info("MQTT client enabled. Creating MqttClientConnector...");
 			this.mqttClient = new MqttClientConnector();
-
-			// CRITICAL: Set this DeviceDataManager as the listener for callbacks
 			this.mqttClient.setDataMessageListener(this);
-
 			_Logger.info("MqttClientConnector created and listener registered.");
 		} else {
 			_Logger.info("MQTT client disabled by configuration.");
 		}
 
-		// Initialize SystemPerformanceManager if enabled
 		if (this.enableSystemPerf) {
 			_Logger.info("System performance monitoring enabled. Creating SystemPerformanceManager...");
 			this.sysPerfMgr = new SystemPerformanceManager();
-
-			// CRITICAL: Set this DeviceDataManager as the listener for callbacks
 			this.sysPerfMgr.setDataMessageListener(this);
-
 			_Logger.info("SystemPerformanceManager created and listener registered.");
 		} else {
 			_Logger.info("System performance monitoring disabled by configuration.");
 		}
 
-		// Initialize CoAP server if enabled
 		if (this.enableCoapServer) {
-			_Logger.info("CoAP server enabled. Will be initialized in Lab Module 08.");
-			// this.coapServer = new CoapServerGateway();
-			// this.coapServer.setDataMessageListener(this);
+			_Logger.info("CoAP server enabled. Creating CoapServerGateway...");
+			this.coapServer = new CoapServerGateway(this);
+			_Logger.info("CoapServerGateway created and listener registered.");
+		} else {
+			_Logger.info("CoAP server disabled by configuration.");
 		}
 
-		// Initialize persistence client if enabled
 		if (this.enablePersistenceClient) {
 			_Logger.info("Persistence client enabled. Will be initialized in Lab Module 05 (optional).");
-			// this.persistenceClient = new RedisPersistenceAdapter();
 		}
 
-		// Initialize cloud client if enabled
 		if (this.enableCloudClient) {
 			_Logger.info("Cloud client enabled. Will be initialized in Lab Module 11.");
-			// this.cloudClient = new CloudClientConnector();
-			// this.cloudClient.setDataMessageListener(this);
 		}
 
-		// Initialize SMTP client if enabled
 		if (this.enableSmtpClient) {
 			_Logger.info("SMTP client enabled. Will be initialized in future lab modules.");
-			// this.smtpClient = new SmtpClientConnector();
 		}
 
 		_Logger.info("Connection subsystem initialization complete.");
 	}
-
 }

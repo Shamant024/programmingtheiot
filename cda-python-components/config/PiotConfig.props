@@ -23,6 +23,7 @@ enableCrypt    = False
 
 #
 # CoAP client configuration information
+# Updated for Lab Module 09 - CDA as CoAP Client
 #
 [Coap.GatewayService]
 credFile       = ./cred/PiotCoapCred.props
@@ -35,6 +36,7 @@ enableCrypt    = False
 
 #
 # CDA specific configuration information
+# CoAP Client will be enabled in Lab Module 09
 #
 [ConstrainedDevice]
 deviceLocationID = constraineddevice001
