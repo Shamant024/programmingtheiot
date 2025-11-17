@@ -45,7 +45,7 @@ class MqttClientConnectorTest(unittest.TestCase):
 	def tearDown(self):
 		pass
 
-	@unittest.skip("Ignore for now.")
+	# @unittest.skip("Ignore for now.")
 	def testConnectAndDisconnect(self):
 		delay = self.cfg.getInteger(ConfigConst.MQTT_GATEWAY_SERVICE, ConfigConst.KEEP_ALIVE_KEY, ConfigConst.DEFAULT_KEEP_ALIVE)
 		
@@ -117,7 +117,7 @@ class MqttClientConnectorTest(unittest.TestCase):
 		
 		self.mcc.disconnectClient()
 
-	@unittest.skip("Ignore for now.")
+	#@unittest.skip("Ignore for now.")
 	def testSensorMsgPub(self):
 		qos = 0
 		delay = self.cfg.getInteger(ConfigConst.MQTT_GATEWAY_SERVICE, ConfigConst.KEEP_ALIVE_KEY, ConfigConst.DEFAULT_KEEP_ALIVE)
