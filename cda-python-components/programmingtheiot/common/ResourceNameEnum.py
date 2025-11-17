@@ -45,6 +45,7 @@ class ResourceNameEnum(Enum):
 	ConfigConst, so it's still relatively easy to debug, IMO.
 	
 	"""
+	# CDA Resources
 	CDA_SENSOR_MSG_RESOURCE           = ConfigConst.CDA_SENSOR_DATA_MSG_RESOURCE
 	CDA_ACTUATOR_CMD_RESOURCE    	  = ConfigConst.CDA_ACTUATOR_CMD_MSG_RESOURCE
 	CDA_ACTUATOR_RESPONSE_RESOURCE    = ConfigConst.CDA_ACTUATOR_RESPONSE_MSG_RESOURCE
@@ -53,6 +54,12 @@ class ResourceNameEnum(Enum):
 	CDA_SYSTEM_PERF_MSG_RESOURCE	  = ConfigConst.CDA_SYSTEM_PERF_MSG_RESOURCE
 	CDA_UPDATE_NOTIFICATIONS_RESOURCE = ConfigConst.CDA_UPDATE_NOTIFICATIONS_MSG_RESOURCE
 	CDA_REGISTRATION_REQUEST_RESOURCE = ConfigConst.CDA_REGISTRATION_REQUEST_RESOURCE
+	
+	# GDA Resources (for CoAP client communication)
+	GDA_MGMT_STATUS_MSG_RESOURCE      = "PIOT/GatewayDevice/MgmtStatusMsg"
+	GDA_MGMT_STATUS_CMD_RESOURCE      = "PIOT/GatewayDevice/MgmtStatusCmd"
+	GDA_SYSTEM_PERF_MSG_RESOURCE      = "PIOT/GatewayDevice/SystemPerfMsg"
+	GDA_UPDATE_NOTIFICATIONS_RESOURCE = "PIOT/GatewayDevice/UpdateMsg"
 
 	def getResourceNameByValue(self, val: str) -> str:
 		"""
@@ -63,5 +70,3 @@ class ResourceNameEnum(Enum):
 		"""
 		if val in ResourceNameEnum.__members__:
 			return ResourceNameEnum.__members__[val]
-	
-			

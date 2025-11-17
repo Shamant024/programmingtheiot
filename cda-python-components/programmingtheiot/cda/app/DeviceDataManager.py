@@ -112,11 +112,11 @@ class DeviceDataManager(IDataMessageListener):
 			self.mqttClient = None
 			logging.info("MQTT client disabled by configuration")
 		
-		# Initialize CoAP client connector if enabled (placeholder for future)
+		# Initialize CoAP client connector if enabled
 		if self.enableCoap:
-			# TODO: Implement in Lab Module 8
-			self.coapClient = None
-			logging.info("CoAP client will be enabled in Lab Module 8")
+			self.coapClient = CoapClientConnector()
+			self.coapClient.setDataMessageListener(self)
+			logging.info("CoAP client enabled")
 		else:
 			self.coapClient = None
 			logging.info("CoAP client disabled by configuration")
@@ -204,9 +204,9 @@ class DeviceDataManager(IDataMessageListener):
 			if data.getName():
 				self.latestActuatorDataCache[data.getName()] = data
 			
-			# Transmit actuator response upstream via MQTT
+			# Transmit actuator response upstream via MQTT and/or CoAP
 			self._handleUpstreamTransmission(
-				ResourceNameEnum.CDA_ACTUATOR_RESPONSE_MSG_RESOURCE,
+				ResourceNameEnum.CDA_ACTUATOR_RESPONSE_RESOURCE,
 				self.dataUtil.actuatorDataToJson(data)
 			)
 			
@@ -253,7 +253,7 @@ class DeviceDataManager(IDataMessageListener):
 			# Analyze sensor data for potential actuator triggers
 			self._handleSensorDataAnalysis(data)
 			
-			# Transmit sensor data upstream via MQTT
+			# Transmit sensor data upstream via MQTT and/or CoAP
 			self._handleUpstreamTransmission(
 				ResourceNameEnum.CDA_SENSOR_MSG_RESOURCE,
 				self.dataUtil.sensorDataToJson(data)
@@ -280,7 +280,7 @@ class DeviceDataManager(IDataMessageListener):
 			if data.getName():
 				self.latestSystemPerfDataCache[data.getName()] = data
 			
-			# Transmit system performance data upstream via MQTT
+			# Transmit system performance data upstream via MQTT and/or CoAP
 			self._handleUpstreamTransmission(
 				ResourceNameEnum.CDA_SYSTEM_PERF_MSG_RESOURCE,
 				self.dataUtil.systemPerformanceDataToJson(data)
@@ -334,10 +334,13 @@ class DeviceDataManager(IDataMessageListener):
 			
 			logging.info("MQTT client connected and subscribed to topics.")
 		
-		# Start CoAP client if enabled (future implementation)
+		# Start CoAP client if enabled
 		if self.coapClient:
-			# TODO: Implement in Lab Module 8
-			logging.info("CoAP client connection will be implemented in Lab Module 8.")
+			logging.info("CoAP client connection enabled.")
+			
+			# Optionally perform discovery to find available resources on GDA
+			logging.info("Performing CoAP resource discovery...")
+			self.coapClient.sendDiscoveryRequest(timeout=10)
 		
 		# Start system performance manager
 		if self.sysPerfMgr:
@@ -373,10 +376,9 @@ class DeviceDataManager(IDataMessageListener):
 			self.mqttClient.disconnectClient()
 			logging.info("MQTT client disconnected.")
 		
-		# Disconnect CoAP client if enabled (future implementation)
+		# Disconnect CoAP client if enabled
 		if self.coapClient:
-			# TODO: Implement in Lab Module 8
-			logging.info("CoAP client disconnection will be implemented in Lab Module 8.")
+			logging.info("CoAP client disconnected.")
 		
 		logging.info("Stopped DeviceDataManager.")
 		
@@ -455,21 +457,71 @@ class DeviceDataManager(IDataMessageListener):
 		"""
 		logging.info("Upstream transmission invoked for resource: " + str(resourceName))
 		
+		mqttSuccess = False
+		coapSuccess = False
+		
 		# Transmit via MQTT if enabled and connected
 		if self.mqttClient:
 			logging.info("Publishing message to MQTT broker...")
-			self.mqttClient.publishMessage(
+			mqttSuccess = self.mqttClient.publishMessage(
 				resource=resourceName,
 				msg=msg,
 				qos=ConfigConst.DEFAULT_QOS
 			)
+			
+			if mqttSuccess:
+				logging.info("MQTT transmission successful.")
+			else:
+				logging.warning("MQTT transmission failed.")
 		
-		# Transmit via CoAP if enabled (future implementation)
+		# Transmit via CoAP if enabled
 		if self.coapClient:
-			# TODO: Implement in Lab Module 8
-			logging.info("CoAP transmission will be implemented in Lab Module 8.")
+			logging.info("Sending message via CoAP...")
+			
+			# Map CDA resources to GDA resources for CoAP transmission
+			gdaResourceName = self._mapCdaResourceToGda(resourceName)
+			
+			if gdaResourceName:
+				# Use POST to send data to GDA
+				coapSuccess = self.coapClient.sendPostRequest(
+					resource=gdaResourceName,
+					payload=msg,
+					timeout=10
+				)
+				
+				if coapSuccess:
+					logging.info("CoAP transmission successful.")
+				else:
+					logging.warning("CoAP transmission failed.")
+			else:
+				logging.warning("Could not map CDA resource to GDA resource for CoAP transmission.")
 		
 		# If no upstream communication is configured
 		if not self.mqttClient and not self.coapClient:
 			logging.debug("No upstream communication configured. Message not transmitted.")
 			logging.debug("Resource: %s, Message: %s", str(resourceName), msg)
+	
+	def _mapCdaResourceToGda(self, cdaResource: ResourceNameEnum) -> ResourceNameEnum:
+		"""
+		Maps CDA resource names to corresponding GDA resource names for CoAP communication.
+		
+		For example:
+		- CDA_SENSOR_MSG_RESOURCE -> GDA_MGMT_STATUS_MSG_RESOURCE
+		- CDA_SYSTEM_PERF_MSG_RESOURCE -> GDA_SYSTEM_PERF_MSG_RESOURCE
+		
+		@param cdaResource The CDA resource enumeration
+		@return ResourceNameEnum The corresponding GDA resource, or None if no mapping exists
+		"""
+		# Map CDA resources to GDA resources
+		# This allows CDA to send data to the appropriate GDA endpoints
+		
+		if cdaResource == ResourceNameEnum.CDA_SENSOR_MSG_RESOURCE:
+			return ResourceNameEnum.GDA_MGMT_STATUS_MSG_RESOURCE
+		elif cdaResource == ResourceNameEnum.CDA_SYSTEM_PERF_MSG_RESOURCE:
+			return ResourceNameEnum.GDA_SYSTEM_PERF_MSG_RESOURCE
+		elif cdaResource == ResourceNameEnum.CDA_ACTUATOR_RESPONSE_RESOURCE:
+			return ResourceNameEnum.GDA_MGMT_STATUS_MSG_RESOURCE
+		else:
+			# No mapping available
+			logging.warning("No GDA resource mapping for CDA resource: %s", str(cdaResource))
+			return None
