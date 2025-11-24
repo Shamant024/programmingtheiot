@@ -150,7 +150,7 @@ public class MqttClientConnector implements IPubSubClient, MqttCallbackExtended 
 				return true;
 			} else {
 				_Logger.warning("MQTT client is already connected.");
-				return false; // Return false if already connected
+				return false;
 			}
 		} catch (MqttException e) {
 			_Logger.log(Level.SEVERE, "Failed to connect to MQTT broker.", e);

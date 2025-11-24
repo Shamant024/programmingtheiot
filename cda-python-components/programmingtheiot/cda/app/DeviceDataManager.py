@@ -198,7 +198,7 @@ class DeviceDataManager(IDataMessageListener):
 		@return bool True if processed successfully, False otherwise
 		"""
 		if data:
-			logging.debug("Incoming actuator response received (from actuator manager): " + str(data))
+			logging.info("Incoming actuator response received (from actuator manager): " + str(data))
 			
 			# Cache the response data
 			if data.getName():
@@ -244,7 +244,7 @@ class DeviceDataManager(IDataMessageListener):
 		@return bool True if processed successfully, False otherwise
 		"""
 		if data:
-			logging.debug("Incoming sensor data received (from sensor manager): " + str(data))
+			logging.info("Incoming sensor data received (from sensor manager): " + str(data))
 			
 			# Cache the sensor data
 			if data.getName():
@@ -274,7 +274,7 @@ class DeviceDataManager(IDataMessageListener):
 		@return bool True if processed successfully, False otherwise
 		"""
 		if data:
-			logging.debug("Incoming system performance message received (from sys perf manager): " + str(data))
+			logging.info("Incoming system performance message received (from sys perf manager): " + str(data))
 			
 			# Cache the system performance data
 			if data.getName():
@@ -498,7 +498,7 @@ class DeviceDataManager(IDataMessageListener):
 		
 		# If no upstream communication is configured
 		if not self.mqttClient and not self.coapClient:
-			logging.debug("No upstream communication configured. Message not transmitted.")
+			logging.info("No upstream communication configured. Message not transmitted.")
 			logging.debug("Resource: %s, Message: %s", str(resourceName), msg)
 	
 	def _mapCdaResourceToGda(self, cdaResource: ResourceNameEnum) -> ResourceNameEnum:

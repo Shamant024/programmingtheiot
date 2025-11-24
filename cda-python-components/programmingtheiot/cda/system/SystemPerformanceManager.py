@@ -26,8 +26,10 @@ from programmingtheiot.data.SystemPerformanceData import SystemPerformanceData
 
 class SystemPerformanceManager(object):
 	"""
-	Shell representation of class for student implementation.
+	Manages system performance monitoring and reporting.
 	
+	Collects CPU and memory utilization data periodically and sends it
+	to a registered data message listener (typically DeviceDataManager).
 	"""
 
 	def __init__(self):
@@ -40,6 +42,7 @@ class SystemPerformanceManager(object):
 		self.scheduler = None
 		self.cpuUtilTask = SystemCpuUtilTask()
 		self.memUtilTask = SystemMemUtilTask()
+		self.dataMsgListener = None
 		self.isStarted = False
 
 	def handleTelemetry(self):
@@ -51,8 +54,24 @@ class SystemPerformanceManager(object):
 
 		logging.info(f"CPU utilization: {cpuUtil}%, Memory utilization: {memUtil}%")
 		
+		# Create SystemPerformanceData object
+		sysPerfData = SystemPerformanceData()
+		sysPerfData.setName(ConfigConst.CPU_UTIL_NAME)
+		sysPerfData.setCpuUtilization(cpuUtil)
+		sysPerfData.setMemoryUtilization(memUtil)
+		
+		# Send to listener if registered
+		if self.dataMsgListener:
+			self.dataMsgListener.handleSystemPerformanceMessage(sysPerfData)
+		
 	def setDataMessageListener(self, listener: IDataMessageListener) -> bool:
-		pass
+		if listener:
+			self.dataMsgListener = listener
+			logging.info("Data message listener set for SystemPerformanceManager")
+			return True
+		else:
+			logging.warning("No data message listener provided")
+			return False
 	
 	def startManager(self):
 		"""
@@ -60,7 +79,7 @@ class SystemPerformanceManager(object):
 		"""
 		if not self.isStarted:
 			logging.info("Starting SystemPerformanceManager...")
-            
+			
 			self.scheduler = BackgroundScheduler()
 			self.scheduler.add_job(
 				func=self.handleTelemetry,
@@ -70,7 +89,7 @@ class SystemPerformanceManager(object):
 			)
 			self.scheduler.start()
 			self.isStarted = True
-            
+			
 			logging.info("SystemPerformanceManager started")
 		
 	def stopManager(self):
@@ -79,9 +98,9 @@ class SystemPerformanceManager(object):
 		"""
 		if self.isStarted:
 			logging.info("Stopping SystemPerformanceManager...")
-            
+			
 			if self.scheduler:
 				self.scheduler.shutdown()
-                
+				
 			self.isStarted = False
 			logging.info("SystemPerformanceManager stopped")

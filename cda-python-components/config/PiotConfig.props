@@ -23,7 +23,7 @@ enableCrypt    = False
 
 #
 # CoAP client configuration information
-# Updated for Lab Module 09 - CDA as CoAP Client
+# DISABLED for Lab Module 10 (focusing on MQTT)
 #
 [Coap.GatewayService]
 credFile       = ./cred/PiotCoapCred.props
@@ -32,11 +32,11 @@ host           = localhost
 port           = 5683
 securePort     = 5684
 enableAuth     = False
-enableCrypt    = False
+enableCrypt    = True
 
 #
 # CDA specific configuration information
-# CoAP Client will be enabled in Lab Module 09
+# Lab Module 10: MQTT only, CoAP disabled
 #
 [ConstrainedDevice]
 deviceLocationID = constraineddevice001
@@ -44,9 +44,9 @@ enableEmulator   = True
 enableSenseHAT   = False
 enableMqttClient = True
 enableCoapServer = False
-enableCoapClient = True
+enableCoapClient = False
 enableSystemPerformance = True
-enableSensing    = False
+enableSensing    = True
 enableLogging    = True
 pollCycleSecs    = 5
 testGdaDataPath  = /tmp/gda-data

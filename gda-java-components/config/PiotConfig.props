@@ -52,7 +52,7 @@ useAsyncClient = False
 
 #
 # CoAP client and server configuration information
-# Updated for Lab Module 08 - GDA as CoAP Server
+# DISABLED for Lab Module 10 (focusing on MQTT)
 #
 [Coap.GatewayService]
 credFile       = ./cred/PiotCoapCred.props
@@ -61,19 +61,19 @@ host           = localhost
 port           = 5683
 securePort     = 5684
 enableAuth     = False
-enableCrypt    = False
+enableCrypt    = True
 enableConfirmedMsgs = True
 
 #
 # GDA specific configuration information
-# Updated for Lab Module 08 - Enable CoAP Server
+# Lab Module 10: MQTT only, CoAP disabled
 #
 [GatewayDevice]
 deviceLocationID        = gatewaydevice001
 enableLogging           = True
 pollCycleSecs           = 60
 enableMqttClient        = True
-enableCoapServer        = True
+enableCoapServer        = False
 enableCoapClient        = False
 enableCloudClient       = False
 enableSmtpClient        = False
@@ -82,3 +82,10 @@ enableSystemPerformance = False
 testGdaDataPath         = /tmp/gda-data
 testCdaDataPath         = /tmp/cda-data
 testEmptyApp            = False
+
+# Humidity threshold crossing rules
+handleHumidityChangeOnDevice = True
+humidityMaxTimePastThreshold = 300
+nominalHumiditySetting = 40.0
+triggerHumidifierFloor = 30.0
+triggerHumidifierCeiling = 50.0

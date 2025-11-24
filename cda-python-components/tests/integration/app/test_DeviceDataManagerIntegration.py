@@ -48,6 +48,7 @@ class DeviceDataManagerIntegrationTest(unittest.TestCase):
 	def tearDown(self):
 		pass
 
+	# Test runs for 60 seconds
 	@unittest.skip("Ignore for now.")
 	def testDeviceDataMgrTimedIntegration(self):
 		ddMgr = DeviceDataManager()
@@ -56,7 +57,47 @@ class DeviceDataManagerIntegrationTest(unittest.TestCase):
 		sleep(60)
 		
 		ddMgr.stopManager()
+
+	# Test actuator command handling
+	@unittest.skip("Ignore for now.")
+	def testActuatorCommandMessage(self):
+		# Create manager
+		ddMgr = DeviceDataManager()
+		ddMgr.startManager()
+		
+		# Wait for startup
+		sleep(2)
+		
+		# Create test actuator command
+		actuatorData = ActuatorData()
+		actuatorData.setName(ConfigConst.HUMIDIFIER_ACTUATOR_NAME)
+		actuatorData.setCommand(ConfigConst.COMMAND_ON)
+		actuatorData.setValue(50.0)
+		
+		logging.info("Sending test actuator command: " + str(actuatorData))
+		
+		# Send command
+		response = ddMgr.handleActuatorCommandMessage(actuatorData)
+		
+		# Check response
+		if response:
+			logging.info("Response: " + str(response))
+		
+		# Wait for processing
+		sleep(5)
+		
+		# Stop manager
+		ddMgr.stopManager()
+
+	# Quick 10 second test
+	# @unittest.skip("Ignore for now.")
+	def testShortRun(self):
+		ddMgr = DeviceDataManager()
+		ddMgr.startManager()
+		
+		sleep(10)
+		
+		ddMgr.stopManager()
 		
 if __name__ == "__main__":
 	unittest.main()
-	
