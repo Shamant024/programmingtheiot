@@ -8,6 +8,7 @@
 
 package programmingtheiot.gda.connection;
 
+import programmingtheiot.common.IConnectionListener;
 import programmingtheiot.common.IDataMessageListener;
 import programmingtheiot.common.ResourceNameEnum;
 
@@ -15,8 +16,7 @@ import programmingtheiot.common.ResourceNameEnum;
  * Interface contract for pub/sub clients.
  * 
  */
-public interface IPubSubClient
-{
+public interface IPubSubClient {
 	/***
 	 * Connects to the pub/sub broker / server using configuration parameters
 	 * specified by the sub-class.
@@ -26,7 +26,8 @@ public interface IPubSubClient
 	public boolean connectClient();
 
 	/**
-	 * Disconnects from the pub/sub broker / server if the client is already connected.
+	 * Disconnects from the pub/sub broker / server if the client is already
+	 * connected.
 	 * If not, this call is ignored, but will return a False.
 	 * 
 	 * @return bool True on success, False otherwise.
@@ -39,9 +40,11 @@ public interface IPubSubClient
 	 * implementation should either throw an exception, or handle the exception
 	 * and log a message, and return False.
 	 * 
-	 * @param topicEnum The topic Enum containing the topic value to publish the message to.
-	 * @param msg The message to publish. This is expected to be well-formed JSON.
-	 * @param qos The QoS level. This is expected to be 0 - 2.
+	 * @param topicEnum The topic Enum containing the topic value to publish the
+	 *                  message to.
+	 * @param msg       The message to publish. This is expected to be well-formed
+	 *                  JSON.
+	 * @param qos       The QoS level. This is expected to be 0 - 2.
 	 * @return bool True on success, False otherwise.
 	 */
 	public boolean publishMessage(ResourceNameEnum topicName, String msg, int qos);
@@ -53,7 +56,7 @@ public interface IPubSubClient
 	 * and log a message, and return False.
 	 * 
 	 * @param topicEnum The topic Enum containing the topic value to subscribe to.
-	 * @param qos The QoS level. This is expected to be 0 - 2.
+	 * @param qos       The QoS level. This is expected to be 0 - 2.
 	 * @return bool True on success, False otherwise.
 	 */
 	public boolean subscribeToTopic(ResourceNameEnum topicName, int qos);
@@ -61,9 +64,11 @@ public interface IPubSubClient
 	/**
 	 * Attempts to unsubscribe from a topic hosted by the pub/sub broker / server.
 	 * If not already connected, the sub-class implementation should either
-	 * throw an exception, or handle the exception and log a message, and return False.
+	 * throw an exception, or handle the exception and log a message, and return
+	 * False.
 	 * 
-	 * @param topicEnum The topic Enum containing the topic value to unsubscribe from.
+	 * @param topicEnum The topic Enum containing the topic value to unsubscribe
+	 *                  from.
 	 * @return bool True on success, False otherwise.
 	 */
 	public boolean unsubscribeFromTopic(ResourceNameEnum topicName);
@@ -71,9 +76,11 @@ public interface IPubSubClient
 	/**
 	 * Sets the data message listener reference, assuming listener is non-null.
 	 * 
-	 * @param listener The data message listener instance to use for passing relevant
-	 * messages, such as those received from a subscription event.
-	 * @return bool True on success (if listener is non-null will always be the case), False otherwise.
+	 * @param listener The data message listener instance to use for passing
+	 *                 relevant
+	 *                 messages, such as those received from a subscription event.
+	 * @return bool True on success (if listener is non-null will always be the
+	 *         case), False otherwise.
 	 */
 	public boolean setDataMessageListener(IDataMessageListener listener);
 
@@ -81,9 +88,9 @@ public interface IPubSubClient
 	 * Sets the connection listener reference, assuming listener is non-null.
 	 * 
 	 * @param listener The connection listener instance to use for passing relevant
-	 * connect / disconnect events.
-	 * @return bool True on success (if listener is non-null will always be the case), False otherwise.
+	 *                 connect / disconnect events.
+	 * @return bool True on success (if listener is non-null will always be the
+	 *         case), False otherwise.
 	 */
 	public boolean setConnectionListener(IConnectionListener listener);
-	
 }
