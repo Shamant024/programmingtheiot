@@ -31,6 +31,11 @@ import programmingtheiot.common.ConfigUtil;
 import programmingtheiot.common.IConnectionListener;
 import programmingtheiot.common.IDataMessageListener;
 import programmingtheiot.common.ResourceNameEnum;
+import programmingtheiot.common.SimpleCertManagementUtil;
+
+import java.io.File;
+import javax.net.ssl.SSLSocketFactory;
+import programmingtheiot.common.SimpleCertManagementUtil;
 
 /**
  * MQTT Client Connector for GDA to communicate with MQTT broker.
@@ -596,41 +601,47 @@ public class MqttClientConnector implements IPubSubClient, MqttCallbackExtended 
 		ConfigUtil configUtil = ConfigUtil.getInstance();
 
 		try {
-			// Update protocol to SSL/TLS
-			this.protocol = ConfigConst.DEFAULT_MQTT_SECURE_PROTOCOL;
+			_Logger.info("Configuring TLS...");
 
-			// Update port to secure port
-			this.port = configUtil.getInteger(
-					configSectionName,
-					ConfigConst.SECURE_PORT_KEY,
-					ConfigConst.DEFAULT_MQTT_SECURE_PORT);
-
-			// Reconstruct broker address with secure protocol and port
-			this.brokerAddr = this.protocol + "://" + this.host + ":" + this.port;
-
-			_Logger.info("MQTT secure connection enabled. Using broker address: " + this.brokerAddr);
-
-			// Load certificate file path
-			String certFile = configUtil.getProperty(
+			// Get certificate file path
+			String pemFileName = configUtil.getProperty(
 					configSectionName,
 					ConfigConst.CERT_FILE_KEY);
 
-			if (certFile != null) {
-				_Logger.info("Certificate file configured: " + certFile);
+			if (pemFileName != null) {
+				File file = new File(pemFileName);
 
-				// Configure SSL properties
-				Properties sslProps = new Properties();
-				sslProps.setProperty("com.ibm.ssl.protocol", "TLSv1.2");
+				if (file.exists()) {
+					_Logger.info("PEM file valid. Using secure connection: " + pemFileName);
 
-				this.connOpts.setSSLProperties(sslProps);
+					// Use SimpleCertManagementUtil to load certificate
+					SSLSocketFactory sslFactory = SimpleCertManagementUtil.getInstance().loadCertificate(pemFileName);
 
-				_Logger.info("TLS/SSL configured with certificate file.");
+					this.connOpts.setSocketFactory(sslFactory);
+
+					// Update protocol to SSL/TLS
+					this.protocol = ConfigConst.DEFAULT_MQTT_SECURE_PROTOCOL;
+
+					// Update port to secure port
+					this.port = configUtil.getInteger(
+							configSectionName,
+							ConfigConst.SECURE_PORT_KEY,
+							ConfigConst.DEFAULT_MQTT_SECURE_PORT);
+
+					// Reconstruct broker address with secure protocol and port
+					this.brokerAddr = this.protocol + "://" + this.host + ":" + this.port;
+
+					_Logger.info("TLS enabled. Broker address: " + this.brokerAddr);
+
+				} else {
+					_Logger.log(Level.WARNING, "PEM file invalid. Using insecure connection: " + pemFileName);
+				}
 			} else {
 				_Logger.warning("No certificate file specified. Using default SSL configuration.");
 			}
 
 		} catch (Exception e) {
-			_Logger.log(Level.WARNING, "Failed to configure secure MQTT connection.", e);
+			_Logger.log(Level.SEVERE, "Failed to initialize secure MQTT connection. Using insecure connection.", e);
 		}
 	}
 }

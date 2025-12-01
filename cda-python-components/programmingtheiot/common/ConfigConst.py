@@ -50,9 +50,6 @@ DEFAULT_STREAM_FRAME_HEIGHT    =  1080
 DEFAULT_MIN_MOTION_PIXELS_DIFF = 12000
 DEFAULT_MAX_CACHED_FRAMES      =    10
 DEFAULT_STREAM_PROTOCOL        = 'rtsp'
-DEFAULT_STREAM_FPS = 30
-DEFAULT_MIN_MOTION_PIXELS_DIFF = 10000
-DEFAULT_STREAM_PROTOCOL = 'rtsp'
 
 PRODUCT_NAME = 'PIOT'
 CLOUD        = 'Cloud'
@@ -118,13 +115,18 @@ SYSTEM_PERF_MSG   = 'SystemPerfMsg'
 UPDATE_NOTIFICATIONS_MSG      = 'UpdateMsg'
 RESOURCE_REGISTRATION_REQUEST = 'ResourceRegRequest'
 
-LED_ACTUATOR_NAME        = 'LedActuator'
-HUMIDIFIER_ACTUATOR_NAME = 'HumidifierActuator'
-HVAC_ACTUATOR_NAME       = 'HvacActuator'
+# Actuator Names - Smart Office Project
+LED_ACTUATOR_NAME          = 'LedActuator'
+HUMIDIFIER_ACTUATOR_NAME   = 'HumidifierActuator'  # Legacy - keeping for compatibility
+HVAC_ACTUATOR_NAME         = 'HvacActuator'        # Legacy - keeping for compatibility
+VENTILATION_ACTUATOR_NAME  = 'VentilationActuator' # NEW - Smart Office
+AIR_PURIFIER_ACTUATOR_NAME = 'AirPurifierActuator' # NEW - Smart Office
 
+# Sensor Names - Smart Office Project
 HUMIDITY_SENSOR_NAME = 'HumiditySensor'
 PRESSURE_SENSOR_NAME = 'PressureSensor'
 TEMP_SENSOR_NAME     = 'TempSensor'
+CO2_SENSOR_NAME      = 'CO2Sensor'        # NEW - Smart Office
 SYSTEM_PERF_NAME     = 'SystemPerfMsg'
 CAMERA_SENSOR_NAME   = 'CameraSensor'
 
@@ -136,13 +138,18 @@ DEFAULT_TYPE_CATEGORY_ID  =    0
 DEFAULT_ACTUATOR_TYPE     = DEFAULT_TYPE_ID
 DEFAULT_SENSOR_TYPE       = DEFAULT_TYPE_ID
 
-ENV_DEVICE_TYPE           = 1000
-HVAC_ACTUATOR_TYPE        = 1001
-HUMIDIFIER_ACTUATOR_TYPE  = 1002
+# Actuator Type IDs - Smart Office Project
+ENV_DEVICE_TYPE            = 1000
+HVAC_ACTUATOR_TYPE         = 1001  # Legacy - keeping for compatibility
+HUMIDIFIER_ACTUATOR_TYPE   = 1002  # Legacy - keeping for compatibility
+VENTILATION_ACTUATOR_TYPE  = 1003  # NEW - Smart Office
+AIR_PURIFIER_ACTUATOR_TYPE = 1004  # NEW - Smart Office
 
+# Sensor Type IDs - Smart Office Project
 HUMIDITY_SENSOR_TYPE      = 1010
 PRESSURE_SENSOR_TYPE      = 1012
 TEMP_SENSOR_TYPE          = 1013
+CO2_SENSOR_TYPE           = 1014  # NEW - Smart Office
 
 DISPLAY_DEVICE_TYPE       = 2000
 LED_DISPLAY_ACTUATOR_TYPE = 2001
@@ -264,20 +271,31 @@ ENABLE_COAP_SERVER_KEY = 'enableCoapServer'
 ENABLE_SYSTEM_PERF_KEY = 'enableSystemPerformance'
 ENABLE_SENSING_KEY     = 'enableSensing'
 
+# Sensor Simulation Configuration
 HUMIDITY_SIM_FLOOR_KEY   = 'humiditySimFloor'
 HUMIDITY_SIM_CEILING_KEY = 'humiditySimCeiling'
 PRESSURE_SIM_FLOOR_KEY   = 'pressureSimFloor'
 PRESSURE_SIM_CEILING_KEY = 'pressureSimCeiling'
 TEMP_SIM_FLOOR_KEY       = 'tempSimFloor'
 TEMP_SIM_CEILING_KEY     = 'tempSimCeiling'
+CO2_SIM_FLOOR_KEY        = 'co2SimFloor'        # NEW - Smart Office
+CO2_SIM_CEILING_KEY      = 'co2SimCeiling'      # NEW - Smart Office
 
+# Legacy HVAC Temperature Trigger Configuration (keeping for compatibility)
 HANDLE_TEMP_CHANGE_ON_DEVICE_KEY = 'handleTempChangeOnDevice'
 TRIGGER_HVAC_TEMP_FLOOR_KEY   = 'triggerHvacTempFloor'
 TRIGGER_HVAC_TEMP_CEILING_KEY = 'triggerHvacTempCeiling'
 
+# Smart Office Project - Ventilation and Air Quality Configuration
+HANDLE_CO2_CHANGE_ON_DEVICE_KEY = 'handleCO2ChangeOnDevice'
+TRIGGER_VENTILATION_CO2_THRESHOLD_KEY = 'triggerVentilationCO2Threshold'
+TRIGGER_VENTILATION_TEMP_THRESHOLD_KEY = 'triggerVentilationTempThreshold'
+TRIGGER_AIR_PURIFIER_HUMIDITY_THRESHOLD_KEY = 'triggerAirPurifierHumidityThreshold'
+
 RUN_FOREVER_KEY    = 'runForever'
 TEST_EMPTY_APP_KEY = 'testEmptyApp'
 
+# Camera and Streaming Configuration
 STREAM_HOST_ADDR_KEY       = 'streamHostAddr'
 STREAM_HOST_LABEL_KEY      = 'streamHostLabel'
 STREAM_PORT_KEY            = 'streamPort'
@@ -294,7 +312,6 @@ MIN_MOTION_PIXELS_DIFF_KEY = 'minMotionPixelsDiff'
 IMAGE_ENCODING_KEY         = 'imageEncoding'
 IMAGE_DATA_STORE_PATH      = 'imageDataStorePath'
 VIDEO_DATA_STORE_PATH      = 'videoDataStorePath'
-MIN_MOTION_PIXELS_DIFF_KEY = 'minMotionPixelsDiff'
 MAX_MOTION_FRAMES_BEFORE_ACTION_KEY = 'maxMotionFramesBeforeAction'
 MAX_CACHED_FRAMES_KEY      = 'maxCachedFrames'
 STORE_INTERIM_FRAMES_KEY   = 'storeInterimFrames'

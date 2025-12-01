@@ -23,13 +23,13 @@ from programmingtheiot.cda.sim.SensorDataGenerator import SensorDataGenerator
 from programmingtheiot.cda.sim.HumiditySensorSimTask import HumiditySensorSimTask
 from programmingtheiot.cda.sim.TemperatureSensorSimTask import TemperatureSensorSimTask
 from programmingtheiot.cda.sim.PressureSensorSimTask import PressureSensorSimTask
+from programmingtheiot.cda.sim.CO2SensorSimTask import CO2SensorSimTask
 
 class SensorAdapterManager(object):
 	"""
 	Manager class for handling sensor adapters, supporting both simulation and emulation modes.
 	
-	This class coordinates between simulated and emulated sensors based on configuration settings,
-	and manages the periodic collection of telemetry data from all active sensor tasks.
+	Smart Office Project: Manages 4 sensors (Temperature, Humidity, Pressure, CO2)
 	"""
 	def __init__(self, dataMsgListener: IDataMessageListener = None):
 		"""
@@ -84,7 +84,7 @@ class SensorAdapterManager(object):
 	def _initSensorSimulationTasks(self):
 		"""
 		Initialize sensor simulation tasks with data generators.
-		Creates simulated sensors that generate data based on configured ranges and datasets.
+		Creates simulated sensors for Smart Office project (Temp, Humidity, Pressure, CO2).
 		"""
 		# Get floor and ceiling values from configuration
 		humidityFloor = self.configUtil.getFloat(
@@ -117,6 +117,17 @@ class SensorAdapterManager(object):
 			key=ConfigConst.TEMP_SIM_CEILING_KEY, 
 			defaultVal=SensorDataGenerator.HI_NORMAL_INDOOR_TEMP)
 		
+		# NEW - Smart Office: Get CO2 floor and ceiling values
+		co2Floor = self.configUtil.getFloat(
+			section=ConfigConst.CONSTRAINED_DEVICE,
+			key=ConfigConst.CO2_SIM_FLOOR_KEY,
+			defaultVal=400.0)  # Outdoor baseline CO2
+		
+		co2Ceiling = self.configUtil.getFloat(
+			section=ConfigConst.CONSTRAINED_DEVICE,
+			key=ConfigConst.CO2_SIM_CEILING_KEY,
+			defaultVal=1200.0)  # High CO2 level
+		
 		# Generate data sets
 		self.dataGenerator = SensorDataGenerator()
 		
@@ -135,10 +146,23 @@ class SensorAdapterManager(object):
 			maxValue=tempCeiling, 
 			useSeconds=False)
 		
+		# NEW - Smart Office: Generate CO2 data with bell curve (occupancy pattern)
+		co2Data = self.dataGenerator.generateDailySensorDataSet(
+			curveType=SensorDataGenerator.BELL_CURVE,
+			noiseLevel=15,
+			minValue=co2Floor,
+			maxValue=co2Ceiling,
+			startHour=0,
+			endHour=24,
+			useSeconds=False)
+		
 		# Create sensor simulation tasks with generated data sets
 		self.humidityAdapter = HumiditySensorSimTask(dataSet=humidityData)
 		self.pressureAdapter = PressureSensorSimTask(dataSet=pressureData)
 		self.tempAdapter = TemperatureSensorSimTask(dataSet=tempData)
+		self.co2Adapter = CO2SensorSimTask(dataSet=co2Data)  # NEW - Smart Office
+		
+		logging.info("Sensor simulation tasks initialized (Temp, Humidity, Pressure, CO2).")
 	
 	def _initSensorEmulationTasks(self):
 		"""
@@ -147,6 +171,8 @@ class SensorAdapterManager(object):
 		This method dynamically loads the emulator task modules at runtime to avoid
 		import dependencies when emulation is not enabled. The emulator tasks interface
 		with the SenseHAT emulator to read actual sensor values.
+		
+		NOTE: CO2 sensor will use simulation even in emulator mode (SenseHAT doesn't have CO2).
 		"""
 		logging.info("Loading sensor emulation tasks...")
 		
@@ -175,6 +201,31 @@ class SensorAdapterManager(object):
 			self.tempAdapter = teClazz()
 			logging.info("Successfully loaded TemperatureSensorEmulatorTask")
 			
+			# NEW - Smart Office: CO2 sensor always uses simulation (SenseHAT doesn't have CO2)
+			logging.info("CO2 sensor using simulation (SenseHAT emulator doesn't support CO2).")
+			co2Floor = self.configUtil.getFloat(
+				section=ConfigConst.CONSTRAINED_DEVICE,
+				key=ConfigConst.CO2_SIM_FLOOR_KEY,
+				defaultVal=400.0)
+			
+			co2Ceiling = self.configUtil.getFloat(
+				section=ConfigConst.CONSTRAINED_DEVICE,
+				key=ConfigConst.CO2_SIM_CEILING_KEY,
+				defaultVal=1200.0)
+			
+			self.dataGenerator = SensorDataGenerator()
+			co2Data = self.dataGenerator.generateDailySensorDataSet(
+				curveType=SensorDataGenerator.BELL_CURVE,
+				noiseLevel=15,
+				minValue=co2Floor,
+				maxValue=co2Ceiling,
+				startHour=0,
+				endHour=24,
+				useSeconds=False)
+			
+			self.co2Adapter = CO2SensorSimTask(dataSet=co2Data)
+			logging.info("CO2 sensor simulation task initialized.")
+			
 		except ImportError as e:
 			logging.error("Failed to load sensor emulator tasks: %s", str(e))
 			logging.warning("Falling back to sensor simulation tasks due to emulator load failure")
@@ -190,31 +241,33 @@ class SensorAdapterManager(object):
 		"""
 		Handle telemetry collection from all sensor adapters.
 		
-		This method is called by the scheduler at regular intervals and coordinates
-		the generation of telemetry data from all active sensor adapters. The data
-		is then processed by the registered data message listener.
+		Smart Office: Collects data from Temperature, Humidity, Pressure, and CO2 sensors.
 		"""
 		try:
 			# Generate telemetry from each sensor adapter
 			humidityData = self.humidityAdapter.generateTelemetry()
 			pressureData = self.pressureAdapter.generateTelemetry()
 			tempData = self.tempAdapter.generateTelemetry()
+			co2Data = self.co2Adapter.generateTelemetry()  # NEW - Smart Office
 			
 			# Set location ID for each sensor data instance
 			humidityData.setLocationID(self.locationID)
 			pressureData.setLocationID(self.locationID)
 			tempData.setLocationID(self.locationID)
+			co2Data.setLocationID(self.locationID)  # NEW - Smart Office
 			
 			# Log generated data for debugging
 			logging.debug('Generated humidity data: %s', str(humidityData.getValue()))
 			logging.debug('Generated pressure data: %s', str(pressureData.getValue()))
 			logging.debug('Generated temp data: %s', str(tempData.getValue()))
+			logging.debug('Generated CO2 data: %s ppm', str(co2Data.getValue()))  # NEW - Smart Office
 			
 			# Send data to message listener if available
 			if self.dataMsgListener:
 				self.dataMsgListener.handleSensorMessage(humidityData)
 				self.dataMsgListener.handleSensorMessage(pressureData)
 				self.dataMsgListener.handleSensorMessage(tempData)
+				self.dataMsgListener.handleSensorMessage(co2Data)  # NEW - Smart Office
 				
 		except Exception as e:
 			logging.error("Error handling telemetry collection: %s", str(e))
@@ -242,7 +295,7 @@ class SensorAdapterManager(object):
 		
 		if not self.scheduler.running:
 			self.scheduler.start()
-			logging.info("Started SensorAdapterManager.")
+			logging.info("Started SensorAdapterManager with 4 sensors (Temp, Humidity, Pressure, CO2).")
 			return True
 		else:
 			logging.info("SensorAdapterManager scheduler already started. Ignoring.")

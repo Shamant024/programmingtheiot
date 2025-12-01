@@ -18,15 +18,14 @@ from programmingtheiot.common.ConfigUtil import ConfigUtil
 from programmingtheiot.common.IDataMessageListener import IDataMessageListener
 
 from programmingtheiot.data.ActuatorData import ActuatorData
-from programmingtheiot.cda.sim.HvacActuatorSimTask import HvacActuatorSimTask
-from programmingtheiot.cda.sim.HumidifierActuatorSimTask import HumidifierActuatorSimTask
+from programmingtheiot.cda.sim.VentilationActuatorSimTask import VentilationActuatorSimTask
+from programmingtheiot.cda.sim.AirPurifierActuatorSimTask import AirPurifierActuatorSimTask
 
 class ActuatorAdapterManager(object):
 	"""
 	Manager class for handling actuator adapters, supporting both simulation and emulation modes.
 	
-	This class coordinates between simulated and emulated actuators based on configuration settings,
-	and manages the routing of actuation commands to the appropriate actuator tasks.
+	Smart Office Project: Manages Ventilation and Air Purifier actuators.
 	"""
 	
 	def __init__(self, dataMsgListener: IDataMessageListener = None):
@@ -56,9 +55,13 @@ class ActuatorAdapterManager(object):
 			defaultVal=ConfigConst.NOT_SET)
 		
 		# Initialize actuator task references
+		self.ventilationActuator = None
+		self.airPurifierActuator = None
+		self.ledDisplayActuator = None
+		
+		# Legacy actuators (keeping for backward compatibility)
 		self.humidifierActuator = None
 		self.hvacActuator = None
-		self.ledDisplayActuator = None
 		
 		# Initialize actuator tasks based on configuration
 		if self.useEmulator:
@@ -71,41 +74,29 @@ class ActuatorAdapterManager(object):
 	def _initEnvironmentalActuationTasks(self):
 		"""
 		Initialize environmental actuator simulation tasks.
-		Creates simulated actuators that log actuation commands without real hardware interaction.
-		"""
-		# Create simulator tasks for environmental control
-		self.humidifierActuator = HumidifierActuatorSimTask()
-		self.hvacActuator = HvacActuatorSimTask()
-		# Note: LED display actuator is typically only available in emulation mode
 		
-		logging.info("Environmental actuator simulation tasks initialized.")
+		Smart Office: Creates Ventilation and Air Purifier simulators.
+		"""
+		# NEW - Smart Office actuators
+		self.ventilationActuator = VentilationActuatorSimTask()
+		self.airPurifierActuator = AirPurifierActuatorSimTask()
+		
+		logging.info("Smart Office actuator simulation tasks initialized (Ventilation, Air Purifier).")
 	
 	def _initActuatorEmulationTasks(self):
 		"""
 		Initialize actuator emulation tasks using dynamic loading.
 		
-		This method dynamically loads the emulator task modules at runtime to avoid
-		import dependencies when emulation is not enabled. The emulator tasks interface
-		with the SenseHAT emulator to provide visual feedback on actuation commands.
+		Smart Office: Uses simulators for Ventilation and Air Purifier,
+		but uses emulator for LED display.
 		"""
 		logging.info("Loading actuator emulation tasks...")
 		
 		try:
-			# Dynamically load HumidifierEmulatorTask
-			hueModule = import_module(
-				'programmingtheiot.cda.emulated.HumidifierEmulatorTask',
-				'HumidifierEmulatorTask')
-			hueClazz = getattr(hueModule, 'HumidifierEmulatorTask')
-			self.humidifierActuator = hueClazz()
-			logging.info("Successfully loaded HumidifierEmulatorTask")
-			
-			# Dynamically load HvacEmulatorTask
-			hveModule = import_module(
-				'programmingtheiot.cda.emulated.HvacEmulatorTask', 
-				'HvacEmulatorTask')
-			hveClazz = getattr(hveModule, 'HvacEmulatorTask')
-			self.hvacActuator = hveClazz()
-			logging.info("Successfully loaded HvacEmulatorTask")
+			# Smart Office actuators use simulation (no emulator available)
+			self.ventilationActuator = VentilationActuatorSimTask()
+			self.airPurifierActuator = AirPurifierActuatorSimTask()
+			logging.info("Ventilation and Air Purifier using simulation tasks.")
 			
 			# Dynamically load LedDisplayEmulatorTask
 			leDisplayModule = import_module(
@@ -118,21 +109,17 @@ class ActuatorAdapterManager(object):
 		except ImportError as e:
 			logging.error("Failed to load actuator emulator tasks: %s", str(e))
 			logging.warning("Falling back to actuator simulation tasks due to emulator load failure")
-			# Fall back to simulation tasks if emulator loading fails
 			self._initEnvironmentalActuationTasks()
 		except Exception as e:
 			logging.error("Unexpected error loading actuator emulator tasks: %s", str(e))
 			logging.warning("Falling back to actuator simulation tasks due to unexpected error")
-			# Fall back to simulation tasks for any other errors
 			self._initEnvironmentalActuationTasks()
 	
 	def sendActuatorCommand(self, data: ActuatorData) -> ActuatorData:
 		"""
 		Send an actuator command to the appropriate actuator task.
 		
-		This method validates the incoming actuation command and routes it to the
-		appropriate actuator based on the type ID. It performs several validation
-		checks before processing the command.
+		Smart Office: Routes commands to Ventilation, Air Purifier, or LED actuators.
 		
 		@param data The ActuatorData command to process
 		@return ActuatorData The response from the actuator, or None if invalid/failed
@@ -147,16 +134,31 @@ class ActuatorAdapterManager(object):
 				aType = data.getTypeID()
 				responseData = None
 				
-				# Route command to appropriate actuator based on type ID
-				if aType == ConfigConst.HUMIDIFIER_ACTUATOR_TYPE and self.humidifierActuator:
-					logging.debug("Processing humidifier actuator command")
-					responseData = self.humidifierActuator.updateActuator(data)
-				elif aType == ConfigConst.HVAC_ACTUATOR_TYPE and self.hvacActuator:
-					logging.debug("Processing HVAC actuator command")
-					responseData = self.hvacActuator.updateActuator(data)
+				# NEW - Smart Office: Route to Ventilation actuator
+				if aType == ConfigConst.VENTILATION_ACTUATOR_TYPE and self.ventilationActuator:
+					logging.info("Processing ventilation actuator command")
+					responseData = self.ventilationActuator.updateActuator(data)
+				
+				# NEW - Smart Office: Route to Air Purifier actuator
+				elif aType == ConfigConst.AIR_PURIFIER_ACTUATOR_TYPE and self.airPurifierActuator:
+					logging.info("Processing air purifier actuator command")
+					responseData = self.airPurifierActuator.updateActuator(data)
+				
+				# LED Display actuator
 				elif aType == ConfigConst.LED_DISPLAY_ACTUATOR_TYPE and self.ledDisplayActuator:
-					logging.debug("Processing LED display actuator command")
+					logging.info("Processing LED display actuator command")
 					responseData = self.ledDisplayActuator.updateActuator(data)
+				
+				# Legacy support - HVAC
+				elif aType == ConfigConst.HVAC_ACTUATOR_TYPE and self.hvacActuator:
+					logging.debug("Processing HVAC actuator command (legacy)")
+					responseData = self.hvacActuator.updateActuator(data)
+				
+				# Legacy support - Humidifier
+				elif aType == ConfigConst.HUMIDIFIER_ACTUATOR_TYPE and self.humidifierActuator:
+					logging.debug("Processing humidifier actuator command (legacy)")
+					responseData = self.humidifierActuator.updateActuator(data)
+				
 				else:
 					logging.warning("No valid actuator type or actuator not available. Ignoring actuation for type: %s", 
 						data.getTypeID())
@@ -168,9 +170,6 @@ class ActuatorAdapterManager(object):
 				else:
 					logging.warning("Actuator command processing failed or returned no response")
 				
-				# In a later lab module, the responseData instance will be
-				# passed to a callback function implemented in DeviceDataManager
-				# via IDataMessageListener
 				return responseData
 			else:
 				logging.warning("Location ID doesn't match. Ignoring actuation: (me) %s != (you) %s", 

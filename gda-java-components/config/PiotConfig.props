@@ -6,6 +6,8 @@
 #
 # IMPORTANT: Edit this file to meet your local system requirements.
 #
+# Smart Office Environmental Management System - GDA Configuration
+#
 
 #
 # Cloud client configuration information
@@ -46,7 +48,7 @@ port           = 1883
 securePort     = 8883
 defaultQoS     = 0
 keepAlive      = 60
-enableAuth     = True
+enableAuth     = False
 enableCrypt    = True
 useAsyncClient = False
 
@@ -66,7 +68,7 @@ enableConfirmedMsgs = True
 
 #
 # GDA specific configuration information
-# Lab Module 10: MQTT only, CoAP disabled
+# Smart Office Environmental Management System
 #
 [GatewayDevice]
 deviceLocationID        = gatewaydevice001
@@ -83,9 +85,10 @@ testGdaDataPath         = /tmp/gda-data
 testCdaDataPath         = /tmp/cda-data
 testEmptyApp            = False
 
-# Humidity threshold crossing rules
+# Smart Office Project - Air Purifier threshold (managed by GDA)
+# Air Purifier activates when humidity > 60%
 handleHumidityChangeOnDevice = True
 humidityMaxTimePastThreshold = 300
 nominalHumiditySetting = 40.0
 triggerHumidifierFloor = 30.0
-triggerHumidifierCeiling = 50.0
+triggerHumidifierCeiling = 60.0

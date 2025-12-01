@@ -6,6 +6,8 @@
 #
 # IMPORTANT: Edit this file to meet your local system requirements.
 #
+# Smart Office Environmental Management System Configuration
+#
 
 #
 # Cloud client configuration information
@@ -51,11 +53,12 @@ enableCrypt    = True
 
 #
 # CDA specific configuration information
-# Lab Module 10: MQTT only, CoAP disabled
+# Smart Office Environmental Management System
 #
 [ConstrainedDevice]
 deviceLocationID = constraineddevice001
 enableEmulator   = True
+enableSimulator  = True
 enableSenseHAT   = False
 enableMqttClient = True
 enableCoapServer = False
@@ -68,20 +71,35 @@ testGdaDataPath  = /tmp/gda-data
 testCdaDataPath  = /tmp/cda-data
 testEmptyApp     = False
 
-# configurable limits for sensor simulation
+# Sensor simulation ranges - Smart Office Project
 humiditySimFloor   =   35.0
-humiditySimCeiling =   45.0
+humiditySimCeiling =   65.0
 pressureSimFloor   =  990.0
 pressureSimCeiling = 1010.0
-tempSimFloor       =   15.0
-tempSimCeiling     =   25.0
+tempSimFloor       =   18.0
+tempSimCeiling     =   28.0
+co2SimFloor        =  400.0
+co2SimCeiling      = 1400.0
 
-# configurable limits for actuator triggers
-handleTempChangeOnDevice = True
+# Smart Office Project - Ventilation System Configuration
+# Ventilation activates when:
+# - CO2 > 1000 ppm (poor air quality)
+# - Temperature > 26°C (too hot)
+handleCO2ChangeOnDevice = True
+triggerVentilationCO2Threshold = 1000.0
+triggerVentilationTempThreshold = 26.0
+
+# Smart Office Project - Air Purifier Configuration
+# Air Purifier activates when:
+# - Humidity > 60% (too humid - mold risk)
+triggerAirPurifierHumidityThreshold = 60.0
+
+# Legacy HVAC temperature trigger (keeping for compatibility)
+handleTempChangeOnDevice = False
 triggerHvacTempFloor     = 18.0
 triggerHvacTempCeiling   = 20.0
 
-# camera settings
+# Camera settings (not used in Smart Office project)
 streamHostAddr      = 127.0.0.1
 streamHostLabel     = localhost
 streamPort          = 8554

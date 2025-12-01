@@ -14,12 +14,19 @@ import logging
 import programmingtheiot.common.ConfigConst as ConfigConst
 from programmingtheiot.common.ConfigUtil import ConfigUtil
 from programmingtheiot.cda.sim.BaseActuatorSimTask import BaseActuatorSimTask
-from pisense import SenseHAT
+
+try:
+	from pisense import SenseHAT
+	SENSE_HAT_AVAILABLE = True
+except:
+	SENSE_HAT_AVAILABLE = False
 
 class LedDisplayEmulatorTask(BaseActuatorSimTask):
 	"""
 	Emulated LED display actuator task that interfaces with SenseHAT emulator.
 	Controls the 8x8 LED matrix for displaying text and clearing the display.
+	
+	Smart Office: Displays emergency alerts from cloud dashboard.
 	"""
 	
 	def __init__(self):
@@ -38,9 +45,17 @@ class LedDisplayEmulatorTask(BaseActuatorSimTask):
 			ConfigConst.CONSTRAINED_DEVICE,
 			ConfigConst.ENABLE_EMULATOR_KEY)
 		
-		# Initialize SenseHAT with emulation flag
-		# If True: uses emulator, if False: attempts hardware connection
-		self.sh = SenseHAT(emulate = enableEmulation)
+		# Initialize SenseHAT if available
+		if SENSE_HAT_AVAILABLE:
+			try:
+				self.sh = SenseHAT(emulate = enableEmulation)
+				logging.info("SenseHAT emulator initialized successfully for LED display.")
+			except:
+				self.sh = None
+				logging.warning("SenseHAT emulator initialization failed. Using console output only.")
+		else:
+			self.sh = None
+			logging.info("SenseHAT library not available. Using console output only.")
 	
 	def _activateActuator(self, val: float = ConfigConst.DEFAULT_VAL, stateData: str = None) -> int:
 		"""
@@ -51,19 +66,38 @@ class LedDisplayEmulatorTask(BaseActuatorSimTask):
 		@param stateData: Text message to display on LED matrix
 		@return int: 0 on success, -1 on error
 		"""
-		if self.sh.screen:
-			# Use stateData if provided, otherwise use default message
-			if stateData:
-				displayText = stateData
-			else:
-				displayText = "LED ON"
-			
-			# Scroll the text across the LED matrix with font size 8
-			self.sh.screen.scroll_text(displayText, size = 8)
-			return 0
+		# PROMINENT CONSOLE OUTPUT
+		print("\n" + "=" * 60)
+		print("" * 15)
+		print("=" * 60)
+		print("***************  LED DISPLAY ON  ***************")
+		print("=" * 60)
+		if stateData:
+			print(f"MESSAGE: {stateData}")
 		else:
-			logging.warning("No SenseHAT LED screen instance to write.")
-			return -1
+			print("MESSAGE: EMERGENCY ALERT ACTIVATED!")
+		print("=" * 60)
+		print("" * 15)
+		print("=" * 60 + "\n")
+		
+		logging.warning(" LED DISPLAY ACTIVATED - Cloud Command Received!")
+		
+		# Try to display on SenseHAT if available
+		if self.sh and self.sh.screen:
+			try:
+				# Use stateData if provided, otherwise use default message
+				if stateData:
+					displayText = stateData
+				else:
+					displayText = "ALERT!"
+				
+				# Scroll the text across the LED matrix
+				self.sh.screen.scroll_text(displayText, size = 8)
+				logging.info("Text displayed on SenseHAT emulator screen.")
+			except Exception as e:
+				logging.warning(f"Failed to display on SenseHAT screen: {e}")
+		
+		return 0
 	
 	def _deactivateActuator(self, val: float = ConfigConst.DEFAULT_VAL, stateData: str = None) -> int:
 		"""
@@ -74,10 +108,26 @@ class LedDisplayEmulatorTask(BaseActuatorSimTask):
 		@param stateData: State data (not used for deactivation)
 		@return int: 0 on success, -1 on error
 		"""
-		if self.sh.screen:
-			# Clear the LED display immediately
-			self.sh.screen.clear()
-			return 0
-		else:
-			logging.warning("No SenseHAT LED screen instance to clear / close.")
-			return -1
+		# PROMINENT CONSOLE OUTPUT
+		print("\n" + "-" * 60)
+		print("" * 15)
+		print("-" * 60)
+		print("***************  LED DISPLAY OFF  ***************")
+		print("-" * 60)
+		print("MESSAGE: Emergency alert cleared - system normal")
+		print("-" * 60)
+		print("" * 15)
+		print("-" * 60 + "\n")
+		
+		logging.info("✓ LED DISPLAY DEACTIVATED - Cloud Command Received!")
+		
+		# Try to clear SenseHAT if available
+		if self.sh and self.sh.screen:
+			try:
+				# Clear the LED display
+				self.sh.screen.clear()
+				logging.info("SenseHAT emulator screen cleared.")
+			except Exception as e:
+				logging.warning(f"Failed to clear SenseHAT screen: {e}")
+		
+		return 0
