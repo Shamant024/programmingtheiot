@@ -12,191 +12,276 @@
 
 import logging
 import paho.mqtt.client as mqttClient
-
-import programmingtheiot.common.ConfigConst as ConfigConst
+import ssl
 
 from programmingtheiot.common.ConfigUtil import ConfigUtil
-from programmingtheiot.common.IDataMessageListener import IDataMessageListener
 from programmingtheiot.common.ResourceNameEnum import ResourceNameEnum
+from programmingtheiot.common.IDataMessageListener import IDataMessageListener
+
+import programmingtheiot.common.ConfigConst as ConfigConst
 
 from programmingtheiot.cda.connection.IPubSubClient import IPubSubClient
 
 class MqttClientConnector(IPubSubClient):
 	"""
-	MQTT Client Connector for CDA to communicate with MQTT broker (GDA or Cloud).
-	
-	This class handles:
-	- Connection/disconnection to MQTT broker
-	- Publishing messages to topics
-	- Subscribing to topics
-	- Handling incoming messages via callbacks
+	MQTT client connector for CDA to communicate with MQTT broker.
+	Handles connection, publishing, subscribing, and message callbacks.
 	"""
-
+	
 	def __init__(self, clientID: str = None):
 		"""
-		Default constructor. This will set remote broker information and client connection
-		information based on the default configuration file contents.
+		Constructor for MqttClientConnector.
 		
-		@param clientID Defaults to None. Can be set by caller. If this is used, it's
-		critically important that a unique, non-conflicting name be used so to avoid
-		causing the MQTT broker to disconnect any client using the same name. With
-		auto-reconnect enabled, this can cause a race condition where each client with
-		the same clientID continuously attempts to re-connect, causing the broker to
-		disconnect the previous instance.
+		@param clientID Optional client ID (uses config if not provided)
 		"""
-		# Initialize ConfigUtil to read configuration
+		# Initialize configuration
 		self.config = ConfigUtil()
 		
-		# Load MQTT configuration from PiotConfig.props
+		# Get MQTT broker configuration
 		self.host = self.config.getProperty(
-			ConfigConst.MQTT_GATEWAY_SERVICE, 
-			ConfigConst.HOST_KEY, 
-			ConfigConst.DEFAULT_HOST
-		)
+			section=ConfigConst.MQTT_GATEWAY_SERVICE,
+			key=ConfigConst.HOST_KEY,
+			defaultVal=ConfigConst.DEFAULT_HOST)
 		
 		self.port = self.config.getInteger(
-			ConfigConst.MQTT_GATEWAY_SERVICE, 
-			ConfigConst.PORT_KEY, 
-			ConfigConst.DEFAULT_MQTT_PORT
-		)
+			section=ConfigConst.MQTT_GATEWAY_SERVICE,
+			key=ConfigConst.PORT_KEY,
+			defaultVal=ConfigConst.DEFAULT_MQTT_PORT)
 		
 		self.keepAlive = self.config.getInteger(
-			ConfigConst.MQTT_GATEWAY_SERVICE, 
-			ConfigConst.KEEP_ALIVE_KEY, 
-			ConfigConst.DEFAULT_KEEP_ALIVE
-		)
+			section=ConfigConst.MQTT_GATEWAY_SERVICE,
+			key=ConfigConst.KEEP_ALIVE_KEY,
+			defaultVal=ConfigConst.DEFAULT_KEEP_ALIVE)
 		
-		self.defaultQos = self.config.getInteger(
-			ConfigConst.MQTT_GATEWAY_SERVICE, 
-			ConfigConst.DEFAULT_QOS_KEY, 
-			ConfigConst.DEFAULT_QOS
-		)
+		# Get encryption and auth settings
+		self.enableEncryption = self.config.getBoolean(
+			section=ConfigConst.MQTT_GATEWAY_SERVICE,
+			key=ConfigConst.ENABLE_CRYPT_KEY)
 		
-		# Get device location ID for topic construction
-		self.locationID = self.config.getProperty(
-			ConfigConst.CONSTRAINED_DEVICE,
-			ConfigConst.DEVICE_LOCATION_ID_KEY,
-			"constraineddevice001"
-		)
+		self.pemFileName = self.config.getProperty(
+			section=ConfigConst.MQTT_GATEWAY_SERVICE,
+			key=ConfigConst.CERT_FILE_KEY)
 		
-		# Initialize the Paho MQTT client
-		# If clientID is provided, use it; otherwise use locationID
-		if clientID:
-			self.clientID = clientID
+		# Get client ID
+		if not clientID:
+			self.clientID = self.config.getProperty(
+				section=ConfigConst.CONSTRAINED_DEVICE,
+				key=ConfigConst.DEVICE_LOCATION_ID_KEY,
+				defaultVal='constraineddevice001')
 		else:
-			self.clientID = self.locationID
+			self.clientID = clientID
 		
-		# Create MQTT client instance (using MQTT v3.1.1) - FIXED: Added CallbackAPIVersion
-		self.mc = mqttClient.Client(mqttClient.CallbackAPIVersion.VERSION1, client_id=self.clientID, clean_session=True)
-		
-		# Set callback functions
-		self.mc.on_connect = self.onConnect
-		self.mc.on_disconnect = self.onDisconnect
-		self.mc.on_message = self.onMessage
-		self.mc.on_publish = self.onPublish
-		self.mc.on_subscribe = self.onSubscribe
-		
-		# Data message listener reference
+		# Initialize MQTT client
+		self.mqttClient = None
 		self.dataMsgListener = None
 		
-		logging.info('\tMQTT Client ID:   ' + self.clientID)
-		logging.info('\tMQTT Broker Host: ' + self.host)
-		logging.info('\tMQTT Broker Port: ' + str(self.port))
-		logging.info('\tMQTT Keep Alive:  ' + str(self.keepAlive))
-
+		logging.info('      MQTT Client ID:   ' + self.clientID)
+		logging.info('      MQTT Broker Host: ' + self.host)
+		logging.info('      MQTT Broker Port: ' + str(self.port))
+		logging.info('      MQTT Keep Alive:  ' + str(self.keepAlive))
+	
 	def connectClient(self) -> bool:
 		"""
-		Connects to the MQTT broker.
+		Connect to the MQTT broker.
 		
-		@return bool True on successful connection initiation; False otherwise.
+		@return bool True if connection successful, False otherwise
 		"""
-		if not self.mc:
-			logging.warning("MQTT client is not initialized.")
-			return False
+		if not self.mqttClient:
+			# Create MQTT client with clean session
+			self.mqttClient = mqttClient.Client(
+				client_id=self.clientID,
+				clean_session=True)
+			
+			# Setup TLS encryption if enabled
+			try:
+				if self.enableEncryption:
+					logging.info("Enabling TLS encryption...")
+					
+					self.port = self.config.getInteger(
+						section=ConfigConst.MQTT_GATEWAY_SERVICE,
+						key=ConfigConst.SECURE_PORT_KEY,
+						defaultVal=ConfigConst.DEFAULT_MQTT_SECURE_PORT)
+					
+					# Set TLS configuration
+					self.mqttClient.tls_set(
+						self.pemFileName,
+						tls_version=ssl.PROTOCOL_TLS_CLIENT)
+					
+					logging.info("TLS encryption enabled.")
+			except Exception as e:
+				logging.warning("Failed to enable TLS encryption: " + str(e))
+			
+			# Set callback methods
+			self.mqttClient.on_connect = self.onConnect
+			self.mqttClient.on_disconnect = self.onDisconnect
+			self.mqttClient.on_message = self.onMessage
+			self.mqttClient.on_publish = self.onPublish
+			self.mqttClient.on_subscribe = self.onSubscribe
 		
-		try:
-			logging.info("Connecting to MQTT broker at host: " + self.host + " port: " + str(self.port))
+		if not self.mqttClient.is_connected():
+			logging.info('Connecting to MQTT broker at host: ' + self.host + ' port: ' + str(self.port))
 			
-			# Connect to the broker
-			self.mc.connect(self.host, self.port, self.keepAlive)
+			# Connect to broker
+			self.mqttClient.connect(self.host, self.port, self.keepAlive)
 			
-			# Start the network loop in a separate thread
-			self.mc.loop_start()
+			# Start network loop
+			self.mqttClient.loop_start()
 			
 			return True
-		except Exception as e:
-			logging.error("Failed to connect to MQTT broker: " + str(e))
+		else:
+			logging.warning('MQTT client is already connected.')
 			return False
-		
+	
 	def disconnectClient(self) -> bool:
 		"""
-		Disconnects from the MQTT broker.
+		Disconnect from the MQTT broker.
 		
-		@return bool True on successful disconnection; False otherwise.
+		@return bool True if disconnection successful, False otherwise
 		"""
-		if not self.mc:
-			logging.warning("MQTT client is not initialized.")
-			return False
-		
-		try:
-			logging.info("Disconnecting from MQTT broker...")
+		if self.mqttClient and self.mqttClient.is_connected():
+			logging.info('Disconnecting from MQTT broker...')
 			
-			# Stop the network loop
-			self.mc.loop_stop()
+			# Stop network loop
+			self.mqttClient.loop_stop()
 			
 			# Disconnect from broker
-			self.mc.disconnect()
+			self.mqttClient.disconnect()
 			
 			return True
-		except Exception as e:
-			logging.error("Failed to disconnect from MQTT broker: " + str(e))
+		else:
+			logging.warning('MQTT client is not connected.')
+			return False
+	
+	def publishMessage(self, resource: ResourceNameEnum, msg: str, qos: int = ConfigConst.DEFAULT_QOS) -> bool:
+		"""
+		Publish a message to the specified resource topic.
+		
+		@param resource The resource enumeration for the topic
+		@param msg The message payload (JSON string)
+		@param qos Quality of Service level (0, 1, or 2)
+		@return bool True if publish successful, False otherwise
+		"""
+		if not resource:
+			logging.warning('Resource is None. Cannot publish message.')
 			return False
 		
+		if not msg:
+			logging.warning('Message is None or empty. Cannot publish message.')
+			return False
+		
+		if qos < 0 or qos > 2:
+			qos = ConfigConst.DEFAULT_QOS
+		
+		# Publish message
+		logging.info('Publishing message to topic: ' + resource.value)
+		logging.debug('Message payload: ' + msg)
+		
+		msgInfo = self.mqttClient.publish(
+			topic=resource.value,
+			payload=msg,
+			qos=qos)
+		
+		return True
+	
+	def subscribeToTopic(self, resource: ResourceNameEnum, qos: int = ConfigConst.DEFAULT_QOS) -> bool:
+		"""
+		Subscribe to a topic for receiving messages.
+		
+		@param resource The resource enumeration for the topic
+		@param qos Quality of Service level (0, 1, or 2)
+		@return bool True if subscription successful, False otherwise
+		"""
+		if not resource:
+			logging.warning('Resource is None. Cannot subscribe to topic.')
+			return False
+		
+		if qos < 0 or qos > 2:
+			qos = ConfigConst.DEFAULT_QOS
+		
+		logging.info('Subscribing to topic: ' + resource.value + ' with QoS: ' + str(qos))
+		
+		# Subscribe to topic
+		result, mid = self.mqttClient.subscribe(resource.value, qos)
+		
+		if result == mqttClient.MQTT_ERR_SUCCESS:
+			logging.info('Successfully subscribed to topic: ' + resource.value)
+			return True
+		else:
+			logging.error('Failed to subscribe to topic: ' + resource.value)
+			return False
+	
+	def unsubscribeFromTopic(self, resource: ResourceNameEnum) -> bool:
+		"""
+		Unsubscribe from a topic.
+		
+		@param resource The resource enumeration for the topic
+		@return bool True if unsubscription successful, False otherwise
+		"""
+		if not resource:
+			logging.warning('Resource is None. Cannot unsubscribe from topic.')
+			return False
+		
+		logging.info('Unsubscribing from topic: ' + resource.value)
+		
+		# Unsubscribe from topic
+		result, mid = self.mqttClient.unsubscribe(resource.value)
+		
+		if result == mqttClient.MQTT_ERR_SUCCESS:
+			logging.info('Successfully unsubscribed from topic: ' + resource.value)
+			return True
+		else:
+			logging.error('Failed to unsubscribe from topic: ' + resource.value)
+			return False
+	
+	def setDataMessageListener(self, listener: IDataMessageListener) -> bool:
+		"""
+		Set the data message listener for handling incoming messages.
+		
+		@param listener The IDataMessageListener implementation
+		@return bool True if listener set successfully, False otherwise
+		"""
+		if listener:
+			self.dataMsgListener = listener
+			logging.info('Data message listener set successfully.')
+			return True
+		else:
+			logging.warning('No data message listener provided.')
+			return False
+	
+	# MQTT Callback Methods
+	
 	def onConnect(self, client, userdata, flags, rc):
 		"""
-		Callback when connection to broker is established.
+		Callback when connection to MQTT broker is established.
 		
-		@param client The MQTT client instance.
-		@param userdata The private user data.
-		@param flags Response flags sent by the broker.
-		@param rc The connection result code.
+		@param client The MQTT client instance
+		@param userdata The private user data
+		@param flags Response flags from broker
+		@param rc Connection result code (0 = success)
 		"""
-		logging.info('[Callback] Connected to MQTT broker. Result code: ' + str(rc))
-		
-		# Result codes:
-		# 0: Connection successful
-		# 1: Connection refused - incorrect protocol version
-		# 2: Connection refused - invalid client identifier
-		# 3: Connection refused - server unavailable
-		# 4: Connection refused - bad username or password
-		# 5: Connection refused - not authorized
-		
 		if rc == 0:
-			logging.info("MQTT connection successful.")
-			# TODO: Subscribe to topics here if needed
+			logging.info('[Callback] Connected to MQTT broker. Result code: ' + str(rc))
+			logging.info('MQTT connection successful.')
 		else:
-			logging.warning("MQTT connection failed with result code: " + str(rc))
-		
+			logging.error('[Callback] Failed to connect to MQTT broker. Result code: ' + str(rc))
+	
 	def onDisconnect(self, client, userdata, rc):
 		"""
-		Callback when disconnected from broker.
+		Callback when disconnected from MQTT broker.
 		
-		@param client The MQTT client instance.
-		@param userdata The private user data.
-		@param rc The disconnection result code.
+		@param client The MQTT client instance
+		@param userdata The private user data
+		@param rc Disconnection result code
 		"""
 		logging.info('[Callback] Disconnected from MQTT broker. Result code: ' + str(rc))
-		
-		if rc != 0:
-			logging.warning("Unexpected disconnection from MQTT broker.")
-		
+	
 	def onMessage(self, client, userdata, msg):
 		"""
 		Callback when a message is received on any subscribed topic.
 		
-		@param client The MQTT client instance.
-		@param userdata The private user data.
-		@param msg The message received (contains topic and payload).
+		@param client The MQTT client instance
+		@param userdata The private user data
+		@param msg The message received (contains topic and payload)
 		"""
 		logging.info('[Callback] Message received on topic: ' + msg.topic)
 		
@@ -207,176 +292,42 @@ class MqttClientConnector(IPubSubClient):
 		# If a data message listener is set, pass the message to it
 		if self.dataMsgListener:
 			try:
-				# Convert topic string to ResourceNameEnum - FIXED: Changed to getResourceNameByValue
-				resourceEnum = ResourceNameEnum.getResourceNameByValue(msg.topic)
+				# Find matching ResourceNameEnum by comparing topic string
+				resourceEnum = None
+				
+				for resource in ResourceNameEnum:
+					if resource.value == msg.topic:
+						resourceEnum = resource
+						break
 				
 				if resourceEnum:
+					logging.info('Matched topic to resource: ' + str(resourceEnum))
 					self.dataMsgListener.handleIncomingMessage(resourceEnum, payload)
 				else:
-					logging.warning("Unknown topic received: " + msg.topic)
+					logging.warning('Unknown topic received: ' + msg.topic)
+					
 			except Exception as e:
-				logging.error("Failed to handle incoming message: " + str(e))
+				logging.error('Failed to handle incoming message: ' + str(e))
 		else:
-			logging.warning("No data message listener registered. Message not processed.")
-			
+			logging.warning('No data message listener registered. Message not processed.')
+	
 	def onPublish(self, client, userdata, mid):
 		"""
 		Callback when a message has been published.
 		
-		@param client The MQTT client instance.
-		@param userdata The private user data.
-		@param mid The message ID of the published message.
+		@param client The MQTT client instance
+		@param userdata The private user data
+		@param mid The message ID of the published message
 		"""
 		logging.debug('[Callback] Message published with message ID: ' + str(mid))
 	
 	def onSubscribe(self, client, userdata, mid, granted_qos):
 		"""
-		Callback when subscription is acknowledged by broker.
+		Callback when subscription is confirmed.
 		
-		@param client The MQTT client instance.
-		@param userdata The private user data.
-		@param mid The message ID of the subscribe request.
-		@param granted_qos The QoS levels granted by the broker for each subscription.
+		@param client The MQTT client instance
+		@param userdata The private user data
+		@param mid The message ID
+		@param granted_qos The QoS level granted by broker
 		"""
 		logging.info('[Callback] Subscription successful with message ID: ' + str(mid) + ' and QoS: ' + str(granted_qos))
-	
-	def onActuatorCommandMessage(self, client, userdata, msg):
-		"""
-		This callback is defined as a convenience, but does not
-		need to be used and can be ignored.
-		
-		It's simply an example for how you can create your own
-		custom callback for incoming messages from a specific
-		topic subscription (such as for actuator commands).
-		
-		@param client The client reference context.
-		@param userdata The user reference context.
-		@param msg The message context, including the embedded payload.
-		"""
-		logging.info('[Callback] Actuator command message received.')
-		
-		# Decode and log the payload
-		payload = msg.payload.decode('utf-8')
-		logging.info('Actuator command payload: ' + payload)
-		
-		# Process the actuator command through the data message listener
-		if self.dataMsgListener:
-			try:
-				resourceEnum = ResourceNameEnum.getResourceNameByValue(msg.topic)
-				if resourceEnum:
-					self.dataMsgListener.handleIncomingMessage(resourceEnum, payload)
-			except Exception as e:
-				logging.error("Failed to handle actuator command message: " + str(e))
-	
-	def publishMessage(self, resource: ResourceNameEnum = None, msg: str = None, qos: int = ConfigConst.DEFAULT_QOS):
-		"""
-		Publishes a message to the specified topic.
-		
-		@param resource The ResourceNameEnum representing the topic.
-		@param msg The message payload to publish (as a string).
-		@param qos The Quality of Service level (0, 1, or 2).
-		@return bool True on successful publish; False otherwise.
-		"""
-		if not resource:
-			logging.warning("No resource specified for publish. Ignoring.")
-			return False
-		
-		if not msg:
-			logging.warning("No message specified for publish. Ignoring.")
-			return False
-		
-		# Get the topic name from ResourceNameEnum - FIXED: Changed to .value property
-		topic = resource.value
-		
-		try:
-			logging.info("Publishing message to topic: " + topic)
-			logging.debug("Message payload: " + msg)
-			
-			# Publish the message
-			msgInfo = self.mc.publish(topic=topic, payload=msg, qos=qos)
-			
-			# Wait for publish to complete
-			msgInfo.wait_for_publish()
-			
-			logging.info("Message published successfully to topic: " + topic)
-			return True
-			
-		except Exception as e:
-			logging.error("Failed to publish message to topic " + topic + ": " + str(e))
-			return False
-	
-	def subscribeToTopic(self, resource: ResourceNameEnum = None, callback = None, qos: int = ConfigConst.DEFAULT_QOS):
-		"""
-		Subscribes to a topic.
-		
-		@param resource The ResourceNameEnum representing the topic.
-		@param callback Optional custom callback for this specific topic.
-		@param qos The Quality of Service level (0, 1, or 2).
-		@return bool True on successful subscription; False otherwise.
-		"""
-		if not resource:
-			logging.warning("No resource specified for subscription. Ignoring.")
-			return False
-		
-		# Get the topic name from ResourceNameEnum - FIXED: Changed to .value property
-		topic = resource.value
-		
-		try:
-			logging.info("Subscribing to topic: " + topic + " with QoS: " + str(qos))
-			
-			# If a custom callback is provided, use it; otherwise use default onMessage
-			if callback:
-				self.mc.message_callback_add(topic, callback)
-				logging.info("Custom callback added for topic: " + topic)
-			
-			# Subscribe to the topic
-			self.mc.subscribe(topic, qos)
-			
-			logging.info("Successfully subscribed to topic: " + topic)
-			return True
-			
-		except Exception as e:
-			logging.error("Failed to subscribe to topic " + topic + ": " + str(e))
-			return False
-	
-	def unsubscribeFromTopic(self, resource: ResourceNameEnum = None):
-		"""
-		Unsubscribes from a topic.
-		
-		@param resource The ResourceNameEnum representing the topic.
-		@return bool True on successful unsubscription; False otherwise.
-		"""
-		if not resource:
-			logging.warning("No resource specified for unsubscription. Ignoring.")
-			return False
-		
-		# Get the topic name from ResourceNameEnum - FIXED: Changed to .value property
-		topic = resource.value
-		
-		try:
-			logging.info("Unsubscribing from topic: " + topic)
-			
-			# Unsubscribe from the topic
-			self.mc.unsubscribe(topic)
-			
-			logging.info("Successfully unsubscribed from topic: " + topic)
-			return True
-			
-		except Exception as e:
-			logging.error("Failed to unsubscribe from topic " + topic + ": " + str(e))
-			return False
-
-	def setDataMessageListener(self, listener: IDataMessageListener = None) -> bool:
-		"""
-		Sets the data message listener for handling incoming messages.
-		
-		@param listener The IDataMessageListener implementation.
-		@return bool True on success; False otherwise.
-		"""
-		if listener:
-			self.dataMsgListener = listener
-			logging.info("Data message listener set successfully.")
-			return True
-		else:
-			logging.warning("No data message listener provided.")
-			return False
